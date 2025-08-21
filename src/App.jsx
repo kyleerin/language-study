@@ -282,7 +282,7 @@ function App() {
         <tbody>
       {filteredRows.length === 0 ? (
             <tr>
-              <td colSpan={4} style={{ textAlign: 'center' }}>
+              <td colSpan={4}>
         No data found. {rows.length === 0 ? 'Click "Import CSV" (top right) to load your data.' : 'Try changing filters.'}
               </td>
             </tr>
