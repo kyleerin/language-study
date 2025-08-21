@@ -210,11 +210,21 @@ function App() {
     .wrap { display: flex; flex-direction: column; height: 100%; }
     header { padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--panel); color: var(--text); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     header .actions { display: flex; align-items: center; gap: 8px; }
+    .controls { display: flex; align-items: flex-end; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); background: #111520; }
+    .controls .field { display: flex; flex-direction: column; gap: 4px; }
+    .controls label { font-size: 12px; color: var(--muted); }
+    input[type="password"], select { background: var(--input); color: var(--text); border: 1px solid var(--btn-border); border-radius: 6px; padding: 6px 8px; }
+    input[type="checkbox"] { accent-color: var(--accent); }
     textarea { flex: 1; width: 100%; resize: none; border: none; padding: 12px; font-size: 14px; line-height: 1.4; background: var(--input); color: var(--text); caret-color: var(--text); }
     textarea::selection { background: var(--accent); color: #fff; }
     textarea:focus { outline: 1px solid var(--btn-border); }
     button { padding: 6px 10px; border-radius: 6px; background: var(--btn); color: var(--text); border: 1px solid var(--btn-border); cursor: pointer; }
     button:hover { background: var(--btn-hover); border-color: var(--btn-border-hover); }
+    .row { display: flex; align-items: center; gap: 8px; }
+    .grow { flex: 1; }
+    .status { font-size: 12px; color: var(--muted); padding: 4px 12px; }
+    .output { padding: 12px; border-top: 1px solid var(--border); background: #0f131a; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-wrap: break-word; }
+    .output-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--border); background: var(--panel); }
   </style>
   </head>
   <body>
@@ -222,11 +232,37 @@ function App() {
       <header>
         <strong style="font-weight: 600;">AI Prompt</strong>
         <div class="actions">
-          <button id="copyBtn" title="Copy to clipboard">Copy</button>
+          <button id="copyPromptBtn" title="Copy prompt to clipboard">Copy Prompt</button>
+          <button id="copyResponseBtn" title="Copy response to clipboard">Copy Response</button>
           <button id="closeBtn" title="Close window">Close</button>
         </div>
       </header>
+      <div class="controls">
+        <div class="row grow">
+          <div class="field grow">
+            <label for="apiKey">OpenAI API Key</label>
+            <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="model">Model</label>
+            <select id="model">
+              <option value="gpt-4o-mini" selected>gpt-4o-mini</option>
+              <option value="gpt-4o">gpt-4o</option>
+              <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+            </select>
+          </div>
+          <div class="field" style="align-items: center; justify-content: center;">
+            <label><input id="remember" type="checkbox" /> Remember key (local)</label>
+          </div>
+          <div class="field">
+            <button id="runBtn" title="Send to OpenAI">Run ▶</button>
+          </div>
+        </div>
+      </div>
       <textarea id="t" spellcheck="false" aria-label="AI prompt"></textarea>
+      <div class="status" id="status"></div>
+      <div class="output-header"><strong>Response</strong></div>
+      <div class="output" id="out"></div>
     </div>
     <script>
       const txt = ${promptJson};
@@ -234,7 +270,32 @@ function App() {
       t.value = txt;
       t.focus();
       t.select();
-      document.getElementById('copyBtn').addEventListener('click', async () => {
+      const out = document.getElementById('out');
+      const status = document.getElementById('status');
+      const apiKeyEl = document.getElementById('apiKey');
+      const modelEl = document.getElementById('model');
+      const rememberEl = document.getElementById('remember');
+      const runBtn = document.getElementById('runBtn');
+
+      // Try load model and key from this window or opener's localStorage
+      try {
+        const ls = window.localStorage;
+        const key1 = ls.getItem('openai:key');
+        const model1 = ls.getItem('openai:model') || 'gpt-4o-mini';
+        if (key1) apiKeyEl.value = key1;
+        modelEl.value = model1;
+      } catch {}
+      try {
+        const ols = window.opener?.localStorage;
+        if (ols) {
+          const key2 = ols.getItem('openai:key');
+          const model2 = ols.getItem('openai:model');
+          if (!apiKeyEl.value && key2) apiKeyEl.value = key2;
+          if (model2) modelEl.value = model2;
+        }
+      } catch {}
+
+      document.getElementById('copyPromptBtn').addEventListener('click', async () => {
         try {
           if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(t.value); }
           else {
@@ -242,7 +303,73 @@ function App() {
           }
         } catch (e) { alert('Copy failed'); }
       });
+      document.getElementById('copyResponseBtn').addEventListener('click', async () => {
+        try {
+          const val = out.innerText || '';
+          if (!val) return;
+          if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(val); }
+          else {
+            const ta = document.createElement('textarea');
+            ta.value = val; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+          }
+        } catch (e) { alert('Copy failed'); }
+      });
       document.getElementById('closeBtn').addEventListener('click', () => window.close());
+
+      const setBusy = (busy) => { runBtn.disabled = !!busy; runBtn.textContent = busy ? 'Running…' : 'Run ▶'; };
+      const savePrefs = () => {
+        try {
+          const model = modelEl.value || 'gpt-4o-mini';
+          localStorage.setItem('openai:model', model);
+          if (window.opener?.localStorage) window.opener.localStorage.setItem('openai:model', model);
+          if (rememberEl.checked && apiKeyEl.value) {
+            localStorage.setItem('openai:key', apiKeyEl.value);
+            if (window.opener?.localStorage) window.opener.localStorage.setItem('openai:key', apiKeyEl.value);
+          }
+        } catch {}
+      };
+      const run = async () => {
+        const key = apiKeyEl.value.trim();
+        const model = modelEl.value || 'gpt-4o-mini';
+        const prompt = t.value || txt;
+        if (!key) { alert('Enter your OpenAI API key.'); apiKeyEl.focus(); return; }
+        setBusy(true); status.textContent = 'Querying OpenAI…'; out.textContent = '';
+        try {
+          const res = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + key
+            },
+            body: JSON.stringify({
+              model,
+              messages: [
+                { role: 'system', content: 'You are a helpful assistant that translates and explains Korean text to English with brief notes.' },
+                { role: 'user', content: prompt }
+              ],
+              temperature: 0.2
+            })
+          });
+          if (!res.ok) {
+            const errText = await res.text();
+            throw new Error('HTTP ' + res.status + ' ' + res.statusText + '\n' + errText);
+          }
+          const data = await res.json();
+          const msg = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+          out.textContent = msg || '[No content]';
+          status.textContent = 'Done.';
+          savePrefs();
+        } catch (e) {
+          console.error(e);
+          status.textContent = 'Error: ' + (e && e.message ? e.message : 'Unknown error');
+        } finally { setBusy(false); }
+      };
+      runBtn.addEventListener('click', run);
+
+      // Auto-run if we already have a key
+      if (apiKeyEl.value) {
+        setTimeout(run, 0);
+      }
     </script>
   </body>
 </html>`;
