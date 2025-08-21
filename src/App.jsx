@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './App.css';
 
 // Stable ID based on korean+english
@@ -14,7 +14,9 @@ function fnv1aHash(str) {
 function makeId(korean, english) {
   const fallbackNormalize = (s) => (s || '')
     .toLowerCase()
-    .replace(/["“”'‘’\[\]\(\)]+/g, '')
+  .replace(/["“”'‘’()]+/g, '')
+  .replaceAll('[', '')
+  .replaceAll(']', '')
     .replace(/\s+/g, ' ')
     .trim();
   const normalize = (s) => {
@@ -23,7 +25,9 @@ function makeId(korean, english) {
       return (s || '')
         .toLowerCase()
         .normalize('NFKC')
-        .replace(/["“”'‘’\[\]\(\)]+/g, '')
+  .replace(/["“”'‘’()]+/g, '')
+  .replaceAll('[', '')
+  .replaceAll(']', '')
         .replace(/[\p{P}\p{S}]+/gu, ' ')
         .replace(/\s+/g, ' ')
         .trim();
@@ -59,6 +63,7 @@ function parseCSV(text) {
 
 function App() {
   const [rows, setRows] = useState([]);
+  const fileInputRef = useRef(null);
   const [studied, setStudied] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('studiedRows') || '{}');
@@ -75,38 +80,51 @@ function App() {
     }
   });
 
+  // Load data from localStorage (always) on first mount
   useEffect(() => {
-    fetch('/data.csv')
-      .then(res => res.text())
-      .then(text => {
-        const parsed = parseCSV(text);
+    try {
+      const csv = localStorage.getItem('app:dataCSV');
+      if (csv && csv.trim()) {
+        const parsed = parseCSV(csv);
         setRows(parsed);
-        // migrate old keys (index-based, audio-based, or legacy simple-id) to current id-based keys
-        try {
-          const keys = Object.keys(studied || {});
-          if (!keys.length) return;
-
-          const migrated = {};
-          parsed.forEach((row, i) => {
-            const simpleId = makeIdSimple(row.korean, row.english);
-            if (studied[row.id]) migrated[row.id] = true; // already on new id
-            else if (studied[simpleId]) migrated[row.id] = true; // legacy simple hash id
-            else if (studied[row.audio]) migrated[row.id] = true; // audio-based id
-            else if (studied[i]) migrated[row.id] = true; // index-based id
-          });
-
-          // Only persist if migration changes the effective mapping
-          const migratedKeys = Object.keys(migrated);
-          const currentIdSet = new Set(parsed.map(r => r.id));
-          const effectiveOld = parsed.filter(r => studied[r.id]).length;
-          const effectiveNew = migratedKeys.filter(id => currentIdSet.has(id)).length;
-          if (effectiveNew !== effectiveOld || effectiveNew > 0) {
-            setStudied(migrated);
-            localStorage.setItem('studiedRows', JSON.stringify(migrated));
-          }
-        } catch {}
-      });
+      } else {
+        setRows([]);
+      }
+    } catch {
+      setRows([]);
+    }
   }, []);
+
+  // When rows change, migrate any old studied keys to current id-based keys
+  useEffect(() => {
+    try {
+      if (!rows?.length) return;
+      const keys = Object.keys(studied || {});
+      if (!keys.length) return;
+
+      const migrated = {};
+      rows.forEach((row, i) => {
+        const simpleId = makeIdSimple(row.korean, row.english);
+        if (studied[row.id]) migrated[row.id] = true; // already on new id
+        else if (studied[simpleId]) migrated[row.id] = true; // legacy simple hash id
+        else if (studied[row.audio]) migrated[row.id] = true; // audio-based id
+        else if (studied[i]) migrated[row.id] = true; // index-based id
+      });
+
+  // Only persist if migrated mapping actually differs from current id-based mapping
+  const migratedKeys = Object.keys(migrated);
+  const currentIdSet = new Set(rows.map(r => r.id));
+  const studiedIdKeys = Object.keys(studied).filter(k => currentIdSet.has(k));
+  const sameSize = studiedIdKeys.length === migratedKeys.length;
+  const sameAll = sameSize && migratedKeys.every(k => studied[k]);
+  if (!sameAll) {
+        setStudied(migrated);
+        localStorage.setItem('studiedRows', JSON.stringify(migrated));
+      }
+    } catch {
+      // no-op
+    }
+  }, [rows, studied]);
 
   useEffect(() => {
     localStorage.setItem('studiedRows', JSON.stringify(studied));
@@ -127,9 +145,45 @@ function App() {
     });
   };
 
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      // Persist raw CSV so data is always loaded from localStorage on next load
+      localStorage.setItem('app:dataCSV', text);
+      const parsed = parseCSV(text);
+      setRows(parsed);
+    } catch (err) {
+      console.error('Failed to import CSV', err);
+      alert('Failed to import CSV file. Please check the format.');
+    } finally {
+      // Allow re-importing the same file by clearing the value
+      e.target.value = '';
+    }
+  };
+
   return (
     <div className="container">
-      <h1>Korean Words Table</h1>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <h1 style={{ margin: 0 }}>Korean Words Table</h1>
+        <div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            onChange={handleFileChange}
+            style={{ display: 'none' }}
+          />
+          <button onClick={handleImportClick} aria-label="Import CSV and save to localStorage">
+            Import CSV
+          </button>
+        </div>
+      </div>
       <div style={{ margin: '1rem 0' }}>
         <label style={{ marginRight: 12 }}>
           <input
@@ -156,7 +210,7 @@ function App() {
           {rows.length === 0 ? (
             <tr>
               <td colSpan={4} style={{ textAlign: 'center' }}>
-                No data found. Please check your CSV file format and columns.
+                No data found. Click "Import CSV" (top right) to load your data.
               </td>
             </tr>
           ) : (

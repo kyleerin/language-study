@@ -1,6 +1,6 @@
 # Korean Study Table (React + Vite)
 
-Simple web app that displays a table with columns: `Korean`, `English`, and `Audio`. Data is loaded from a CSV file and audio files play from the `public/media` folder. No backend required.
+Simple web app that displays a table with columns: `Korean`, `English`, and `Audio`. Data is stored in your browser's `localStorage` and can be imported via a CSV file. Audio files play from the `public/media` folder. No backend required.
 
 ## Quick start
 
@@ -15,7 +15,7 @@ Open the URL shown in the terminal (typically `http://localhost:5173`).
 
 ## Data
 
-- CSV file: `public/data.csv`
+- Click the `Import CSV` button in the top-right of the app to load data. The raw CSV is saved to `localStorage` under the key `app:dataCSV` and will be loaded automatically on subsequent visits.
 - Expected columns (with header):
 	- `korean`
 	- `english`
@@ -27,7 +27,7 @@ Notes:
 
 ## Audio files
 
-Place mp3 files in `public/media/` and reference them in `data.csv` via the filename (e.g. `1754333716005.mp3`).
+Place mp3 files in `public/media/` and reference them in your CSV via the filename (e.g. `1754333716005.mp3`).
 
 ## Studied state and filter
 
