@@ -185,13 +185,22 @@ function App() {
         return;
       }
       const promptJson = JSON.stringify(String(promptText));
+      // Pull saved key/model in the opener and embed for reliable access
+      let parentKey = '';
+      let parentModel = 'gpt-4o-mini';
+      try {
+        parentKey = String(localStorage.getItem('openai:key') || '');
+        parentModel = String(localStorage.getItem('openai:model') || parentModel);
+      } catch { void 0; }
+      const keyJson = JSON.stringify(parentKey);
+      const modelJson = JSON.stringify(parentModel);
       const html = `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark" />
-  <title>AI Prompt</title>
+  <title>AI Response</title>
   <style>
     :root {
       --bg: #0f1117;
@@ -199,141 +208,36 @@ function App() {
       --border: #2a2f3a;
       --text: #e6e6e6;
       --muted: #a0a6b1;
-      --btn: #2b2f3a;
-      --btn-hover: #343a49;
-      --btn-border: #3a4150;
-      --btn-border-hover: #4a5568;
-      --input: #0f131a;
       --accent: #3b82f6;
     }
     html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
     .wrap { display: flex; flex-direction: column; height: 100%; }
-    header { padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--panel); color: var(--text); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    header .actions { display: flex; align-items: center; gap: 8px; }
-    .controls { display: flex; align-items: flex-end; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); background: #111520; }
-    .controls .field { display: flex; flex-direction: column; gap: 4px; }
-    .controls label { font-size: 12px; color: var(--muted); }
-    input[type="password"], select { background: var(--input); color: var(--text); border: 1px solid var(--btn-border); border-radius: 6px; padding: 6px 8px; }
-    input[type="checkbox"] { accent-color: var(--accent); }
-    textarea { flex: 1; width: 100%; resize: none; border: none; padding: 12px; font-size: 14px; line-height: 1.4; background: var(--input); color: var(--text); caret-color: var(--text); }
-    textarea::selection { background: var(--accent); color: #fff; }
-    textarea:focus { outline: 1px solid var(--btn-border); }
-    button { padding: 6px 10px; border-radius: 6px; background: var(--btn); color: var(--text); border: 1px solid var(--btn-border); cursor: pointer; }
-    button:hover { background: var(--btn-hover); border-color: var(--btn-border-hover); }
-    .row { display: flex; align-items: center; gap: 8px; }
-    .grow { flex: 1; }
-    .status { font-size: 12px; color: var(--muted); padding: 4px 12px; }
-    .output { padding: 12px; border-top: 1px solid var(--border); background: #0f131a; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-wrap: break-word; }
-    .output-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--border); background: var(--panel); }
+    .output { padding: 16px; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word; }
+    .loading { color: var(--muted); padding: 16px; }
   </style>
   </head>
   <body>
     <div class="wrap">
-      <header>
-        <strong style="font-weight: 600;">AI Prompt</strong>
-        <div class="actions">
-          <button id="copyPromptBtn" title="Copy prompt to clipboard">Copy Prompt</button>
-          <button id="copyResponseBtn" title="Copy response to clipboard">Copy Response</button>
-          <button id="closeBtn" title="Close window">Close</button>
-        </div>
-      </header>
-      <div class="controls">
-        <div class="row grow">
-          <div class="field grow">
-            <label for="apiKey">OpenAI API Key</label>
-            <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
-          </div>
-          <div class="field">
-            <label for="model">Model</label>
-            <select id="model">
-              <option value="gpt-4o-mini" selected>gpt-4o-mini</option>
-              <option value="gpt-4o">gpt-4o</option>
-              <option value="gpt-4.1-mini">gpt-4.1-mini</option>
-            </select>
-          </div>
-          <div class="field" style="align-items: center; justify-content: center;">
-            <label><input id="remember" type="checkbox" /> Remember key (local)</label>
-          </div>
-          <div class="field">
-            <button id="runBtn" title="Send to OpenAI">Run ▶</button>
-          </div>
-        </div>
-      </div>
-      <textarea id="t" spellcheck="false" aria-label="AI prompt"></textarea>
-      <div class="status" id="status"></div>
-      <div class="output-header"><strong>Response</strong></div>
+      <div id="status" class="loading">Loading…</div>
       <div class="output" id="out"></div>
     </div>
     <script>
       const txt = ${promptJson};
-      const t = document.getElementById('t');
-      t.value = txt;
-      t.focus();
-      t.select();
+      const initialKey = ${keyJson};
+      const initialModel = ${modelJson};
       const out = document.getElementById('out');
       const status = document.getElementById('status');
-      const apiKeyEl = document.getElementById('apiKey');
-      const modelEl = document.getElementById('model');
-      const rememberEl = document.getElementById('remember');
-      const runBtn = document.getElementById('runBtn');
-
-      // Try load model and key from this window or opener's localStorage
-      try {
-        const ls = window.localStorage;
-        const key1 = ls.getItem('openai:key');
-        const model1 = ls.getItem('openai:model') || 'gpt-4o-mini';
-        if (key1) apiKeyEl.value = key1;
-        modelEl.value = model1;
-  } catch { void 0; }
-      try {
-        const ols = window.opener?.localStorage;
-        if (ols) {
-          const key2 = ols.getItem('openai:key');
-          const model2 = ols.getItem('openai:model');
-          if (!apiKeyEl.value && key2) apiKeyEl.value = key2;
-          if (model2) modelEl.value = model2;
-        }
-  } catch { void 0; }
-
-      document.getElementById('copyPromptBtn').addEventListener('click', async () => {
-        try {
-          if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(t.value); }
-          else {
-            t.select(); document.execCommand('copy');
-          }
-        } catch (e) { alert('Copy failed'); }
-      });
-      document.getElementById('copyResponseBtn').addEventListener('click', async () => {
-        try {
-          const val = out.innerText || '';
-          if (!val) return;
-          if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(val); }
-          else {
-            const ta = document.createElement('textarea');
-            ta.value = val; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
-          }
-        } catch (e) { alert('Copy failed'); }
-      });
-      document.getElementById('closeBtn').addEventListener('click', () => window.close());
-
-      const setBusy = (busy) => { runBtn.disabled = !!busy; runBtn.textContent = busy ? 'Running…' : 'Run ▶'; };
-      const savePrefs = () => {
-        try {
-          const model = modelEl.value || 'gpt-4o-mini';
-          localStorage.setItem('openai:model', model);
-          if (window.opener?.localStorage) window.opener.localStorage.setItem('openai:model', model);
-          if (rememberEl.checked && apiKeyEl.value) {
-            localStorage.setItem('openai:key', apiKeyEl.value);
-            if (window.opener?.localStorage) window.opener.localStorage.setItem('openai:key', apiKeyEl.value);
-          }
-  } catch { void 0; }
-      };
+      const getStored = (k) => { try { return window.localStorage.getItem(k) || ''; } catch { return ''; } };
+      const getOpenerStored = (k) => { try { return window.opener?.localStorage?.getItem(k) || ''; } catch { return ''; } };
+      const key = (initialKey || '').trim() || getStored('openai:key').trim() || getOpenerStored('openai:key').trim();
+      const model = (initialModel || '').trim() || getStored('openai:model').trim() || getOpenerStored('openai:model').trim() || 'gpt-4o-mini';
+      const prompt = txt;
       const run = async () => {
-        const key = apiKeyEl.value.trim();
-        const model = modelEl.value || 'gpt-4o-mini';
-        const prompt = t.value || txt;
-        if (!key) { alert('Enter your OpenAI API key.'); apiKeyEl.focus(); return; }
-        setBusy(true); status.textContent = 'Querying OpenAI…'; out.textContent = '';
+        if (!key) {
+          status.textContent = 'No API key saved. Open AI Settings in the main app to add your key.';
+          return;
+        }
+        status.textContent = 'Querying OpenAI…';
         try {
           const res = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
@@ -357,19 +261,14 @@ function App() {
           const data = await res.json();
           const msg = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
           out.textContent = msg || '[No content]';
-          status.textContent = 'Done.';
-          savePrefs();
+          status.textContent = '';
         } catch (e) {
           console.error(e);
+          out.textContent = '';
           status.textContent = 'Error: ' + (e && e.message ? e.message : 'Unknown error');
-        } finally { setBusy(false); }
+        }
       };
-      runBtn.addEventListener('click', run);
-
-      // Auto-run if we already have a key
-      if (apiKeyEl.value) {
-        setTimeout(run, 0);
-      }
+      run();
     </script>
   </body>
 </html>`;
@@ -383,6 +282,12 @@ function App() {
   };
   const openPromptFor = (koreanText = '') => {
     const prompt = buildPrompt(koreanText);
+    // If no saved API key, open settings first so the user can save it.
+    try {
+      const key = localStorage.getItem('openai:key');
+      if (!key) { openAISettingsWindow(); return; }
+    } catch { void 0; }
+    // Open the AI prompt popup which will auto-run if a key is saved
     openPromptWindow(prompt);
   };
 
@@ -741,8 +646,8 @@ function App() {
                           <button
                             className="icon-btn"
                             onClick={() => openPromptFor(row.korean)}
-                            aria-label="Open AI prompt for this Korean text"
-                            title="Open AI prompt"
+                            aria-label="Run AI on this Korean text"
+                            title="Run AI"
                           >🧠</button>
                           <button
                             className="icon-btn"
@@ -762,8 +667,8 @@ function App() {
                           <button
                             className="icon-btn"
                             onClick={() => openPromptFor(row.korean)}
-                            aria-label="Open AI prompt for this Korean text"
-                            title="Open AI prompt"
+                            aria-label="Run AI on this Korean text"
+                            title="Run AI"
                           >🧠</button>
                           <button
                             className="icon-btn"
