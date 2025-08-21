@@ -339,18 +339,39 @@ function App() {
                   ) : 'No audio'}
                 </td>
                 <td>
-                  {studied[row.id] ? (
-                    <>
-                      <span style={{ color: 'green', fontWeight: 'bold', marginRight: 8 }}>Studied</span>
-                      <button onClick={() => unmarkStudied(row.id)} aria-label="Unmark as studied">Unmark</button>
-                      <button onClick={() => deleteRow(row.id)} aria-label="Delete row" style={{ marginLeft: 8, color: '#a00' }}>Delete</button>
-                    </>
-                  ) : (
-                    <>
-                      <button onClick={() => markStudied(row.id)} aria-label="Mark as studied">Mark as Studied</button>
-                      <button onClick={() => deleteRow(row.id)} aria-label="Delete row" style={{ marginLeft: 8, color: '#a00' }}>Delete</button>
-                    </>
-                  )}
+                  <div className="icon-row-actions">
+                    {studied[row.id] ? (
+                      <>
+                        <button
+                          className="icon-btn"
+                          onClick={() => unmarkStudied(row.id)}
+                          aria-label="Unmark as studied"
+                          title="Unmark as studied"
+                        >↺</button>
+                        <button
+                          className="icon-btn danger"
+                          onClick={() => deleteRow(row.id)}
+                          aria-label="Delete row"
+                          title="Delete row"
+                        >🗑</button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          className="icon-btn"
+                          onClick={() => markStudied(row.id)}
+                          aria-label="Mark as studied"
+                          title="Mark as studied"
+                        >✓</button>
+                        <button
+                          className="icon-btn danger"
+                          onClick={() => deleteRow(row.id)}
+                          aria-label="Delete row"
+                          title="Delete row"
+                        >🗑</button>
+                      </>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))
