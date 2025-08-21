@@ -2,6 +2,46 @@
 import { useEffect, useState } from 'react';
 import './App.css';
 
+// Stable ID based on korean+english
+function fnv1aHash(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = (h >>> 0) + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24));
+  }
+  return (h >>> 0).toString(36);
+}
+function makeId(korean, english) {
+  const fallbackNormalize = (s) => (s || '')
+    .toLowerCase()
+    .replace(/["“”'‘’\[\]\(\)]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const normalize = (s) => {
+    try {
+      // Prefer full unicode normalization with punctuation/symbol removal
+      return (s || '')
+        .toLowerCase()
+        .normalize('NFKC')
+        .replace(/["“”'‘’\[\]\(\)]+/g, '')
+        .replace(/[\p{P}\p{S}]+/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    } catch {
+      // Fallback for environments without Unicode property escapes support
+      return fallbackNormalize(s);
+    }
+  };
+  const key = `${normalize(korean)}|${normalize(english)}`;
+  return fnv1aHash(key);
+}
+
+// Legacy simple id used previously (lowercase+trim only)
+function makeIdSimple(korean, english) {
+  const key = `${(korean || '').trim().toLowerCase()}|${(english || '').trim().toLowerCase()}`;
+  return fnv1aHash(key);
+}
+
 function parseCSV(text) {
   const lines = text.split(/\r?\n/).filter(Boolean);
   // Skip header line if present
@@ -12,7 +52,8 @@ function parseCSV(text) {
     const korean = cols[0] || '';
     const english = cols[1] || '';
     const audio = cols[2] || '';
-    return { korean, english, audio };
+    const id = makeId(korean, english);
+    return { id, korean, english, audio };
   }).filter(row => row.korean && row.english && row.audio);
 }
 
@@ -40,17 +81,26 @@ function App() {
       .then(text => {
         const parsed = parseCSV(text);
         setRows(parsed);
-        // migrate old index-based studied map (numeric keys) to audio-id keys
+        // migrate old keys (index-based, audio-based, or legacy simple-id) to current id-based keys
         try {
           const keys = Object.keys(studied || {});
-          const hasNumeric = keys.some(k => k !== '' && !isNaN(Number(k)));
-          if (hasNumeric && parsed.length) {
-            const migrated = {};
-            // preserve any existing audio-id entries
-            parsed.forEach((row, i) => {
-              if (studied[row.audio]) migrated[row.audio] = true;
-              else if (studied[i]) migrated[row.audio] = true;
-            });
+          if (!keys.length) return;
+
+          const migrated = {};
+          parsed.forEach((row, i) => {
+            const simpleId = makeIdSimple(row.korean, row.english);
+            if (studied[row.id]) migrated[row.id] = true; // already on new id
+            else if (studied[simpleId]) migrated[row.id] = true; // legacy simple hash id
+            else if (studied[row.audio]) migrated[row.id] = true; // audio-based id
+            else if (studied[i]) migrated[row.id] = true; // index-based id
+          });
+
+          // Only persist if migration changes the effective mapping
+          const migratedKeys = Object.keys(migrated);
+          const currentIdSet = new Set(parsed.map(r => r.id));
+          const effectiveOld = parsed.filter(r => studied[r.id]).length;
+          const effectiveNew = migratedKeys.filter(id => currentIdSet.has(id)).length;
+          if (effectiveNew !== effectiveOld || effectiveNew > 0) {
             setStudied(migrated);
             localStorage.setItem('studiedRows', JSON.stringify(migrated));
           }
@@ -66,8 +116,8 @@ function App() {
     localStorage.setItem('showStudied', String(showStudied));
   }, [showStudied]);
 
-  const markStudied = (audioId) => {
-    setStudied(prev => ({ ...prev, [audioId]: true }));
+  const markStudied = (id) => {
+    setStudied(prev => ({ ...prev, [id]: true }));
   };
 
   return (
@@ -82,6 +132,9 @@ function App() {
           />{' '}
           Show studied
         </label>
+        <span style={{ opacity: 0.7, marginLeft: 12, fontSize: 12 }}>
+          {Object.keys(studied).length} studied • {showStudied ? 'showing all' : 'hiding studied'}
+        </span>
       </div>
       <table>
         <thead>
@@ -101,9 +154,9 @@ function App() {
             </tr>
           ) : (
             rows
-              .filter((row) => showStudied || !studied[row.audio])
+              .filter((row) => showStudied || !studied[row.id])
               .map((row) => (
-              <tr key={row.audio} style={studied[row.audio] ? { background: '#d4ffd4' } : {}}>
+              <tr key={row.id} style={studied[row.id] ? { background: '#d4ffd4' } : {}}>
                 <td>{row.korean}</td>
                 <td>{row.english}</td>
                 <td>
@@ -112,10 +165,10 @@ function App() {
                   ) : 'No audio'}
                 </td>
                 <td>
-                  {studied[row.audio] ? (
+                  {studied[row.id] ? (
                     <span style={{ color: 'green', fontWeight: 'bold' }}>Studied</span>
                   ) : (
-                    <button onClick={() => markStudied(row.audio)}>Mark as Studied</button>
+                    <button onClick={() => markStudied(row.id)}>Mark as Studied</button>
                   )}
                 </td>
               </tr>
