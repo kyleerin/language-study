@@ -132,9 +132,10 @@ tr.placeholder td { height: var(--row-h); padding: 6px 8px; }
   border-radius: 10px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.4);
   padding: 16px 18px;
+  text-align: left; /* override #root center alignment */
 }
 .ai-status { color: #a0a6b1; margin-bottom: 10px; white-space: pre-wrap; }
-.ai-output { white-space: pre-wrap; line-height: 1.6; font-size: 14px; }
+.ai-output { white-space: pre-wrap; line-height: 1.6; font-size: 14px; text-align: left; }
 
 /* Markdown tweaks inside AI output */
 .ai-output h1, .ai-output h2, .ai-output h3 { margin: 0.6em 0 0.4em; }
