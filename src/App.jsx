@@ -92,6 +92,7 @@ function stringifyCSV(rows) {
 function App() {
   const [rows, setRows] = useState([]);
   const fileInputRef = useRef(null);
+  const [page, setPage] = useState(1);
   const [studied, setStudied] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('studiedRows') || '{}');
@@ -204,6 +205,8 @@ function App() {
       const mergedCsv = stringifyCSV(merged);
       localStorage.setItem('app:dataCSV', mergedCsv);
       setRows(merged);
+      // Reset to first page after import to show newly available data consistently
+      setPage(1);
     } catch (err) {
       console.error('Failed to import CSV', err);
       alert('Failed to import CSV file. Please check the format.');
@@ -212,6 +215,21 @@ function App() {
       e.target.value = '';
     }
   };
+
+  // Derived: filtered rows and pagination
+  const itemsPerPage = 10;
+  const filteredRows = rows.filter((row) => showStudied || !studied[row.id]);
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / itemsPerPage));
+  const clampedPage = Math.min(Math.max(page, 1), totalPages);
+  if (clampedPage !== page) {
+    // keep state in sync without extra renders
+    setPage(clampedPage);
+  }
+  const start = (clampedPage - 1) * itemsPerPage;
+  const currentPageRows = filteredRows.slice(start, start + itemsPerPage);
+
+  const gotoPrev = () => setPage((p) => Math.max(1, p - 1));
+  const gotoNext = () => setPage((p) => Math.min(totalPages, p + 1));
 
   return (
     <div className="container">
@@ -230,7 +248,7 @@ function App() {
           </button>
         </div>
       </div>
-      <div style={{ margin: '1rem 0' }}>
+      <div style={{ margin: '1rem 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <label style={{ marginRight: 12 }}>
           <input
             type="checkbox"
@@ -239,9 +257,18 @@ function App() {
           />{' '}
           Show studied
         </label>
-        <span style={{ opacity: 0.7, marginLeft: 12, fontSize: 12 }}>
-          {Object.keys(studied).length} studied • {showStudied ? 'showing all' : 'hiding studied'}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ opacity: 0.7, fontSize: 12 }}>
+            {Object.keys(studied).length} studied • {showStudied ? 'showing all' : 'hiding studied'}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button onClick={gotoPrev} disabled={clampedPage <= 1} aria-label="Previous page">‹ Prev</button>
+            <span style={{ fontSize: 12, opacity: 0.8 }}>
+              Page {clampedPage} / {totalPages}
+            </span>
+            <button onClick={gotoNext} disabled={clampedPage >= totalPages} aria-label="Next page">Next ›</button>
+          </div>
+        </div>
       </div>
       <table>
         <thead>
@@ -253,16 +280,14 @@ function App() {
           </tr>
         </thead>
         <tbody>
-          {rows.length === 0 ? (
+      {filteredRows.length === 0 ? (
             <tr>
               <td colSpan={4} style={{ textAlign: 'center' }}>
-                No data found. Click "Import CSV" (top right) to load your data.
+        No data found. {rows.length === 0 ? 'Click "Import CSV" (top right) to load your data.' : 'Try changing filters.'}
               </td>
             </tr>
           ) : (
-            rows
-              .filter((row) => showStudied || !studied[row.id])
-              .map((row) => (
+      currentPageRows.map((row) => (
               <tr key={row.id} style={studied[row.id] ? { background: '#d4ffd4' } : {}}>
                 <td>{row.korean}</td>
                 <td>{row.english}</td>
