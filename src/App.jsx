@@ -18,7 +18,13 @@ function parseCSV(text) {
 
 function App() {
   const [rows, setRows] = useState([]);
-  const [studied, setStudied] = useState({});
+  const [studied, setStudied] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('studiedRows') || '{}');
+    } catch {
+      return {};
+    }
+  });
 
   useEffect(() => {
     fetch('/data.csv')
@@ -27,6 +33,10 @@ function App() {
         setRows(parseCSV(text));
       });
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('studiedRows', JSON.stringify(studied));
+  }, [studied]);
 
   const markStudied = idx => {
     setStudied(prev => ({ ...prev, [idx]: true }));
