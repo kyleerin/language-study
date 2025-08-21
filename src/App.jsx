@@ -284,7 +284,7 @@ function App() {
         const model1 = ls.getItem('openai:model') || 'gpt-4o-mini';
         if (key1) apiKeyEl.value = key1;
         modelEl.value = model1;
-      } catch {}
+  } catch { void 0; }
       try {
         const ols = window.opener?.localStorage;
         if (ols) {
@@ -293,7 +293,7 @@ function App() {
           if (!apiKeyEl.value && key2) apiKeyEl.value = key2;
           if (model2) modelEl.value = model2;
         }
-      } catch {}
+  } catch { void 0; }
 
       document.getElementById('copyPromptBtn').addEventListener('click', async () => {
         try {
@@ -326,7 +326,7 @@ function App() {
             localStorage.setItem('openai:key', apiKeyEl.value);
             if (window.opener?.localStorage) window.opener.localStorage.setItem('openai:key', apiKeyEl.value);
           }
-        } catch {}
+  } catch { void 0; }
       };
       const run = async () => {
         const key = apiKeyEl.value.trim();
@@ -446,6 +446,121 @@ function App() {
     fileInputRef.current?.click();
   };
 
+  // Open a settings window to save OpenAI API key and preferred model
+  const openAISettingsWindow = () => {
+    try {
+      const w = window.open('', 'ai-settings', 'width=560,height=420,resizable,scrollbars');
+      if (!w) { alert('Please allow popups for this site to open AI settings.'); return; }
+      const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>AI Settings</title>
+  <style>
+    :root { --bg:#0f1117; --panel:#151922; --border:#2a2f3a; --text:#e6e6e6; --muted:#a0a6b1; --btn:#2b2f3a; --btn-hover:#343a49; --btn-border:#3a4150; --btn-border-hover:#4a5568; --input:#0f131a; --accent:#3b82f6; }
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;}
+    .wrap{display:flex;flex-direction:column;min-height:100%;}
+    header{padding:10px 12px;border-bottom:1px solid var(--border);background:var(--panel);display:flex;align-items:center;justify-content:space-between;gap:8px}
+    main{padding:16px 14px;display:flex;flex-direction:column;gap:14px}
+    label{font-size:12px;color:var(--muted)}
+    .field{display:flex;flex-direction:column;gap:6px}
+    input[type=password], input[type=text], select{background:var(--input);color:var(--text);border:1px solid var(--btn-border);border-radius:6px;padding:8px 10px}
+    .row{display:flex;align-items:center;gap:8px}
+    .grow{flex:1}
+    button{padding:8px 12px;border-radius:6px;background:var(--btn);color:var(--text);border:1px solid var(--btn-border);cursor:pointer}
+    button:hover{background:var(--btn-hover);border-color:var(--btn-border-hover)}
+    .actions{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+    .status{font-size:12px;color:var(--muted)}
+  </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <strong>AI Settings</strong>
+        <div class="actions">
+          <button id="closeBtn">Close</button>
+        </div>
+      </header>
+      <main>
+        <div class="field">
+          <label for="apiKey">OpenAI API Key</label>
+          <div class="row">
+            <input id="apiKey" class="grow" type="password" placeholder="sk-..." autocomplete="off" />
+            <button id="toggle">Show</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="model">Default Model</label>
+          <select id="model">
+            <option value="gpt-4o-mini" selected>gpt-4o-mini</option>
+            <option value="gpt-4o">gpt-4o</option>
+            <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+          </select>
+        </div>
+        <div class="actions">
+          <button id="saveBtn">Save</button>
+          <span id="status" class="status"></span>
+        </div>
+      </main>
+    </div>
+    <script>
+      const apiKeyEl = document.getElementById('apiKey');
+      const modelEl = document.getElementById('model');
+      const status = document.getElementById('status');
+      const toggleBtn = document.getElementById('toggle');
+      const saveBtn = document.getElementById('saveBtn');
+      const closeBtn = document.getElementById('closeBtn');
+
+      // Load existing values from localStorage (popup and opener)
+      try {
+        const ls = window.localStorage;
+        const key1 = ls.getItem('openai:key');
+        const model1 = ls.getItem('openai:model');
+        if (key1) apiKeyEl.value = key1;
+        if (model1) modelEl.value = model1;
+  } catch { void 0; }
+      try {
+        const ols = window.opener?.localStorage;
+        if (ols) {
+          const key2 = ols.getItem('openai:key');
+          const model2 = ols.getItem('openai:model');
+          if (!apiKeyEl.value && key2) apiKeyEl.value = key2;
+          if (!modelEl.value && model2) modelEl.value = model2;
+        }
+  } catch { void 0; }
+
+      toggleBtn.addEventListener('click', () => {
+        apiKeyEl.type = apiKeyEl.type === 'password' ? 'text' : 'password';
+        toggleBtn.textContent = apiKeyEl.type === 'password' ? 'Show' : 'Hide';
+      });
+
+      saveBtn.addEventListener('click', () => {
+        try {
+          const key = apiKeyEl.value.trim();
+          const model = modelEl.value || 'gpt-4o-mini';
+          localStorage.setItem('openai:key', key);
+          localStorage.setItem('openai:model', model);
+          if (window.opener?.localStorage) {
+            window.opener.localStorage.setItem('openai:key', key);
+            window.opener.localStorage.setItem('openai:model', model);
+          }
+          status.textContent = 'Saved';
+          setTimeout(() => status.textContent = '', 1500);
+        } catch (e) {
+          status.textContent = 'Save failed';
+        }
+      });
+
+      closeBtn.addEventListener('click', () => window.close());
+    </script>
+  </body>
+  </html>`;
+      w.document.open(); w.document.write(html); w.document.close(); w.focus();
+  } catch { void 0; }
+  };
+
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -527,6 +642,11 @@ function App() {
           <button onClick={handleImportClick} aria-label="Import CSV and save to localStorage">
             Import CSV
           </button>
+          <button
+            onClick={openAISettingsWindow}
+            aria-label="Open AI settings"
+            title="Open AI settings"
+          >AI Settings</button>
           <button
             onClick={clearAllStudied}
             aria-label="Clear all studied"
