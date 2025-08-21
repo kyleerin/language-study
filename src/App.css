@@ -112,6 +112,23 @@ table th, table td {
 /* Placeholder rows to keep table height stable when filtering/paginating */
 tr.placeholder td { height: var(--row-h); padding: 6px 8px; }
 
+/* Studied rows: gentle tint and left accent, not full bright fill */
+tr.studied {
+  background: rgba(60, 179, 113, 0.12); /* subtle green tint (sea green at ~12%) */
+}
+tr.studied td {
+  position: relative;
+}
+tr.studied td:first-child::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: rgba(60, 179, 113, 0.8);
+}
+
 /* Modal overlay */
 .modal-overlay {
   position: fixed;

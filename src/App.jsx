@@ -672,7 +672,7 @@ function App() {
           ) : (
             <>
               {currentPageRows.map((row) => (
-                <tr key={row.id} style={studied[row.id] ? { background: '#d4ffd4' } : {}}>
+                <tr key={row.id} className={studied[row.id] ? 'studied' : ''}>
                   <td className="col-korean">{row.korean}</td>
                   <td className="col-english">{row.english}</td>
                   <td className="col-audio">
