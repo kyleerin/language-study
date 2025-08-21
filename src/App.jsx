@@ -174,6 +174,18 @@ function App() {
     });
   };
 
+  const clearAllStudied = () => {
+    try {
+      const hasAny = Object.keys(studied || {}).length > 0;
+      if (!hasAny) return;
+      const ok = window.confirm('Clear studied state for all items?');
+      if (!ok) return;
+      setStudied({});
+    } catch {
+      // no-op
+    }
+  };
+
   // Delete a row entirely: remove from rows, persist CSV, and clean up studied state
   const deleteRow = (id) => {
     try {
@@ -277,7 +289,7 @@ function App() {
     <div className="container">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h1 style={{ margin: 0 }}>Korean Words Table</h1>
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <input
             ref={fileInputRef}
             type="file"
@@ -288,6 +300,11 @@ function App() {
           <button onClick={handleImportClick} aria-label="Import CSV and save to localStorage">
             Import CSV
           </button>
+          <button
+            onClick={clearAllStudied}
+            aria-label="Clear all studied"
+            title="Clear all studied"
+          >Reset All</button>
         </div>
       </div>
       <div style={{ margin: '1rem 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
