@@ -25,12 +25,36 @@ function App() {
       return {};
     }
   });
+  const [showStudied, setShowStudied] = useState(() => {
+    try {
+      const v = localStorage.getItem('showStudied');
+      return v === null ? true : v === 'true';
+    } catch {
+      return true;
+    }
+  });
 
   useEffect(() => {
     fetch('/data.csv')
       .then(res => res.text())
       .then(text => {
-        setRows(parseCSV(text));
+        const parsed = parseCSV(text);
+        setRows(parsed);
+        // migrate old index-based studied map (numeric keys) to audio-id keys
+        try {
+          const keys = Object.keys(studied || {});
+          const hasNumeric = keys.some(k => k !== '' && !isNaN(Number(k)));
+          if (hasNumeric && parsed.length) {
+            const migrated = {};
+            // preserve any existing audio-id entries
+            parsed.forEach((row, i) => {
+              if (studied[row.audio]) migrated[row.audio] = true;
+              else if (studied[i]) migrated[row.audio] = true;
+            });
+            setStudied(migrated);
+            localStorage.setItem('studiedRows', JSON.stringify(migrated));
+          }
+        } catch {}
       });
   }, []);
 
@@ -38,13 +62,27 @@ function App() {
     localStorage.setItem('studiedRows', JSON.stringify(studied));
   }, [studied]);
 
-  const markStudied = idx => {
-    setStudied(prev => ({ ...prev, [idx]: true }));
+  useEffect(() => {
+    localStorage.setItem('showStudied', String(showStudied));
+  }, [showStudied]);
+
+  const markStudied = (audioId) => {
+    setStudied(prev => ({ ...prev, [audioId]: true }));
   };
 
   return (
     <div className="container">
       <h1>Korean Words Table</h1>
+      <div style={{ margin: '1rem 0' }}>
+        <label style={{ marginRight: 12 }}>
+          <input
+            type="checkbox"
+            checked={showStudied}
+            onChange={(e) => setShowStudied(e.target.checked)}
+          />{' '}
+          Show studied
+        </label>
+      </div>
       <table>
         <thead>
           <tr>
@@ -62,8 +100,10 @@ function App() {
               </td>
             </tr>
           ) : (
-            rows.map((row, idx) => (
-              <tr key={idx} style={studied[idx] ? { background: '#d4ffd4' } : {}}>
+            rows
+              .filter((row) => showStudied || !studied[row.audio])
+              .map((row) => (
+              <tr key={row.audio} style={studied[row.audio] ? { background: '#d4ffd4' } : {}}>
                 <td>{row.korean}</td>
                 <td>{row.english}</td>
                 <td>
@@ -72,10 +112,10 @@ function App() {
                   ) : 'No audio'}
                 </td>
                 <td>
-                  {studied[idx] ? (
+                  {studied[row.audio] ? (
                     <span style={{ color: 'green', fontWeight: 'bold' }}>Studied</span>
                   ) : (
-                    <button onClick={() => markStudied(idx)}>Mark as Studied</button>
+                    <button onClick={() => markStudied(row.audio)}>Mark as Studied</button>
                   )}
                 </td>
               </tr>
