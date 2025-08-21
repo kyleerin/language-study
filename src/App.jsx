@@ -47,12 +47,29 @@ function makeIdSimple(korean, english) {
 }
 
 function parseCSV(text) {
+  const cleanCell = (value) => {
+    if (value == null) return '';
+    let s = String(value).trim();
+    // Strip trailing comma if any (from tokenization)
+    s = s.replace(/,$/, '');
+    // Unquote if wrapped in quotes and unescape doubled quotes per RFC 4180
+    if (s.startsWith('"') && s.endsWith('"')) {
+      s = s.slice(1, -1).replace(/""/g, '"');
+    }
+    // Cleanup for previously-corrupted cells that ended up with stray quotes
+    s = s.replace(/^"+|"+$/g, '').trim();
+  // Remove leading/trailing hyphens with optional surrounding spaces
+  s = s.replace(/^\s*-+\s*/, '').replace(/\s*-+\s*$/, '');
+    return s;
+  };
+
   const lines = text.split(/\r?\n/).filter(Boolean);
   // Skip header line if present
   const dataLines = lines.length > 1 && lines[0].toLowerCase().includes('korean') ? lines.slice(1) : lines;
   return dataLines.map(line => {
-    // Handle quoted values and commas inside quotes
-    const cols = line.match(/(?:"([^"]*)"|([^,]+))(?:,|$)/g)?.map(c => c.replace(/^"|"$/g, '').replace(/,$/, '').trim()) || [];
+    // Tokenize with support for commas inside quoted fields and escaped quotes
+    const tokens = line.match(/(?:"(?:[^"]|"")*"|[^,]+)(?:,|$)/g) || [];
+    const cols = tokens.map(cleanCell);
     const korean = cols[0] || '';
     const english = cols[1] || '';
     const audio = cols[2] || '';
@@ -167,9 +184,20 @@ function App() {
       const text = await file.text();
       const parsed = parseCSV(text);
       // Merge with current rows (dedupe by stable id from korean+english)
-      const map = new Map((rows || []).map(r => [r.id, r]));
+      const sanitizeRow = (r) => ({
+          ...r,
+          korean: stripEdgeHyphens((r.korean || '').replace(/^"+|"+$/g, '').trim()),
+          english: stripEdgeHyphens((r.english || '').replace(/^"+|"+$/g, '').trim()),
+          audio: stripEdgeHyphens((r.audio || '').replace(/^"+|"+$/g, '').trim()),
+      });
+        const stripEdgeHyphens = (s='') => s.replace(/^\s*-+\s*/, '').replace(/\s*-+\s*$/, '');
+      const map = new Map((rows || []).map(r => {
+        const s = sanitizeRow(r);
+        return [s.id, s];
+      }));
       for (const r of parsed) {
-        if (!map.has(r.id)) map.set(r.id, r);
+        const s = sanitizeRow(r);
+        if (!map.has(s.id)) map.set(s.id, s);
       }
       const merged = Array.from(map.values());
       // Persist merged CSV so data is always loaded from localStorage on next load
