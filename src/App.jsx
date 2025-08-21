@@ -119,6 +119,13 @@ function App() {
   const markStudied = (id) => {
     setStudied(prev => ({ ...prev, [id]: true }));
   };
+  const unmarkStudied = (id) => {
+    setStudied(prev => {
+      if (!prev[id]) return prev;
+      const { [id]: _removed, ...rest } = prev;
+      return rest;
+    });
+  };
 
   return (
     <div className="container">
@@ -166,9 +173,12 @@ function App() {
                 </td>
                 <td>
                   {studied[row.id] ? (
-                    <span style={{ color: 'green', fontWeight: 'bold' }}>Studied</span>
+                    <>
+                      <span style={{ color: 'green', fontWeight: 'bold', marginRight: 8 }}>Studied</span>
+                      <button onClick={() => unmarkStudied(row.id)} aria-label="Unmark as studied">Unmark</button>
+                    </>
                   ) : (
-                    <button onClick={() => markStudied(row.id)}>Mark as Studied</button>
+                    <button onClick={() => markStudied(row.id)} aria-label="Mark as studied">Mark as Studied</button>
                   )}
                 </td>
               </tr>

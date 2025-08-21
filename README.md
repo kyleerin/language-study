@@ -32,6 +32,7 @@ Place mp3 files in `public/media/` and reference them in `data.csv` via the file
 ## Studied state and filter
 
 - Each row has a `Mark as Studied` button. When clicked, the row is marked and the state is saved in `localStorage` under the key `studiedRows`.
+- Marked rows show a `Studied` label and an `Unmark` button to clear the state.
 - A checkbox at the top toggles whether studied rows are shown. The preference is saved under `showStudied`.
 - A small indicator next to the checkbox shows how many rows are considered studied and whether they’re being shown or hidden.
 
