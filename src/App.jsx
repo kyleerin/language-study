@@ -175,6 +175,39 @@ function App() {
     });
   };
 
+  // Build and copy an AI prompt based on the Korean text
+  const buildPrompt = (koreanText = '') => `translate and explain this: ${koreanText}`;
+  const copyText = async (text) => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {
+      // fallback below
+    }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'absolute';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      return true;
+    } catch (err) {
+      console.error('Copy failed', err);
+      alert('Failed to copy prompt to clipboard');
+      return false;
+    }
+  };
+  const copyPromptFor = async (koreanText = '') => {
+    const prompt = buildPrompt(koreanText);
+    await copyText(prompt);
+  };
+
   const clearAllStudied = () => {
     try {
       const hasAny = Object.keys(studied || {}).length > 0;
@@ -409,6 +442,12 @@ function App() {
                         <>
                           <button
                             className="icon-btn"
+                            onClick={() => copyPromptFor(row.korean)}
+                            aria-label="Copy AI prompt for this Korean text"
+                            title="Copy AI prompt"
+                          >🧠</button>
+                          <button
+                            className="icon-btn"
                             onClick={() => unmarkStudied(row.id)}
                             aria-label="Unmark as studied"
                             title="Unmark as studied"
@@ -422,6 +461,12 @@ function App() {
                         </>
                       ) : (
                         <>
+                          <button
+                            className="icon-btn"
+                            onClick={() => copyPromptFor(row.korean)}
+                            aria-label="Copy AI prompt for this Korean text"
+                            title="Copy AI prompt"
+                          >🧠</button>
                           <button
                             className="icon-btn"
                             onClick={() => markStudied(row.id)}
