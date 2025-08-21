@@ -226,7 +226,7 @@ function App() {
   };
 
   // Build AI prompt from the Korean text
-  const buildPrompt = (koreanText = '') => `translate and explain this, don't include transliteration: ${koreanText}`;
+  const buildPrompt = (koreanText = '') => `translate and explain this, don't include transliteration. Break it down word by word with explanations/definitions. Give only this, nothing else. Format it very simply, no special bulleted lists, just simple sentence/paragraph structure.: ${koreanText}`;
   
   // Run AI request and display in modal
   const runAIModal = async (promptText = '', cacheKey = '') => {
