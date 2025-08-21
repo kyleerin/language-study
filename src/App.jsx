@@ -174,6 +174,48 @@ function App() {
     });
   };
 
+  // Delete a row entirely: remove from rows, persist CSV, and clean up studied state
+  const deleteRow = (id) => {
+    try {
+      // Optional confirm to avoid accidental deletes
+      const ok = window.confirm('Delete this row from your saved data? This cannot be undone.');
+      if (!ok) return;
+
+      let nextRowsSnapshot = [];
+      setRows(prevRows => {
+        const nextRows = prevRows.filter(r => r.id !== id);
+        nextRowsSnapshot = nextRows;
+        try {
+          const csv = stringifyCSV(nextRows);
+          localStorage.setItem('app:dataCSV', csv);
+        } catch {
+          // persist best-effort
+        }
+        return nextRows;
+      });
+
+      // Remove any studied flag for this id
+      setStudied(prev => {
+        if (!prev[id]) return prev;
+        const { [id]: _removed, ...rest } = prev;
+        return rest;
+      });
+
+      // Adjust page if current page becomes empty
+      setPage(p => {
+        try {
+          const nextFilteredCount = (nextRowsSnapshot || []).filter(r => showStudied || !studied[r.id]).length;
+          const newTotal = Math.max(1, Math.ceil(nextFilteredCount / itemsPerPage));
+          return Math.min(p, newTotal);
+        } catch {
+          return p;
+        }
+      });
+    } catch {
+      // no-op
+    }
+  };
+
   const handleImportClick = () => {
     fileInputRef.current?.click();
   };
@@ -301,9 +343,13 @@ function App() {
                     <>
                       <span style={{ color: 'green', fontWeight: 'bold', marginRight: 8 }}>Studied</span>
                       <button onClick={() => unmarkStudied(row.id)} aria-label="Unmark as studied">Unmark</button>
+                      <button onClick={() => deleteRow(row.id)} aria-label="Delete row" style={{ marginLeft: 8, color: '#a00' }}>Delete</button>
                     </>
                   ) : (
-                    <button onClick={() => markStudied(row.id)} aria-label="Mark as studied">Mark as Studied</button>
+                    <>
+                      <button onClick={() => markStudied(row.id)} aria-label="Mark as studied">Mark as Studied</button>
+                      <button onClick={() => deleteRow(row.id)} aria-label="Delete row" style={{ marginLeft: 8, color: '#a00' }}>Delete</button>
+                    </>
                   )}
                 </td>
               </tr>
