@@ -18,6 +18,7 @@ function parseCSV(text) {
 
 function App() {
   const [rows, setRows] = useState([]);
+  const [studied, setStudied] = useState({});
 
   useEffect(() => {
     fetch('/data.csv')
@@ -26,6 +27,10 @@ function App() {
         setRows(parseCSV(text));
       });
   }, []);
+
+  const markStudied = idx => {
+    setStudied(prev => ({ ...prev, [idx]: true }));
+  };
 
   return (
     <div className="container">
@@ -36,24 +41,32 @@ function App() {
             <th>Korean</th>
             <th>English</th>
             <th>Audio</th>
+            <th>Action</th>
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={3} style={{ textAlign: 'center' }}>
+              <td colSpan={4} style={{ textAlign: 'center' }}>
                 No data found. Please check your CSV file format and columns.
               </td>
             </tr>
           ) : (
             rows.map((row, idx) => (
-              <tr key={idx}>
+              <tr key={idx} style={studied[idx] ? { background: '#d4ffd4' } : {}}>
                 <td>{row.korean}</td>
                 <td>{row.english}</td>
                 <td>
                   {row.audio ? (
                     <audio controls src={`/media/${row.audio}`}/>
                   ) : 'No audio'}
+                </td>
+                <td>
+                  {studied[idx] ? (
+                    <span style={{ color: 'green', fontWeight: 'bold' }}>Studied</span>
+                  ) : (
+                    <button onClick={() => markStudied(idx)}>Mark as Studied</button>
+                  )}
                 </td>
               </tr>
             ))
