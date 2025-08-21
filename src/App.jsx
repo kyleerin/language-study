@@ -118,6 +118,24 @@ function App() {
   const [aiStatus, setAiStatus] = useState('');
   const aiAbortRef = useRef(null);
 
+  // Simple localStorage-backed AI cache
+  const getAICache = () => {
+    try {
+      const raw = localStorage.getItem('openai:cache');
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  };
+  const setAICacheValue = (id, value) => {
+    try {
+      const cache = getAICache();
+      cache[id] = String(value || '');
+      localStorage.setItem('openai:cache', JSON.stringify(cache));
+    } catch { /* best-effort */ }
+  };
+  const getAICacheValue = (id) => {
+    try { const v = getAICache()[id]; return typeof v === 'string' ? v : ''; } catch { return ''; }
+  };
+
   // Load data from localStorage (always) on first mount
   useEffect(() => {
     try {
@@ -184,11 +202,18 @@ function App() {
   };
 
   // Build AI prompt from the Korean text
-  const buildPrompt = (koreanText = '') => `translate and explain this: ${koreanText}`;
+  const buildPrompt = (koreanText = '') => `translate and explain this, don't include transliteration: ${koreanText}`;
   
   // Run AI request and display in modal
-  const runAIModal = async (promptText = '') => {
+  const runAIModal = async (promptText = '', cacheKey = '') => {
     try {
+      // Use cached response if present
+      const cached = cacheKey ? getAICacheValue(cacheKey) : '';
+      if (cached) {
+        setAiStatus('');
+        setAiResponse(cached);
+        return;
+      }
       setAiStatus('Querying OpenAI…');
       setAiResponse('');
       // Abort management
@@ -261,7 +286,8 @@ function App() {
   } catch {
         msg = await withTimeout(responsesAPI(), timeoutMs);
       }
-      setAiResponse(msg || '[No content]');
+  setAiResponse(msg || '[No content]');
+  if (cacheKey && msg) setAICacheValue(cacheKey, msg);
       setAiStatus('');
     } catch (e) {
       console.error(e);
@@ -279,20 +305,23 @@ function App() {
     setAiStatus('');
   };
 
-  const openPromptWindow = (promptText = '') => {
+  const openPromptWindow = (promptText = '', cacheKey = '') => {
     setAiOpen(true);
     // Defer run to next tick so modal renders immediately
-    setTimeout(() => runAIModal(String(promptText || '')), 0);
+    setTimeout(() => runAIModal(String(promptText || ''), String(cacheKey || '')), 0);
   };
-  const openPromptFor = (koreanText = '') => {
-    const prompt = buildPrompt(koreanText);
-    // If no saved API key, open settings first so the user can save it.
+  const openPromptFor = (row = null) => {
     try {
-      const key = localStorage.getItem('openai:key');
-      if (!key) { openAISettingsWindow(); return; }
-    } catch { void 0; }
-    // Open the AI prompt popup which will auto-run if a key is saved
-    openPromptWindow(prompt);
+      if (!row) return;
+      const prompt = buildPrompt(row.korean || '');
+      const id = row.id || makeId(row.korean || '', row.english || '');
+      const cached = getAICacheValue(id);
+      const key = (localStorage.getItem('openai:key') || '').trim();
+      // If no key and no cache, route user to settings first
+      if (!key && !cached) { openAISettingsWindow(); return; }
+      // Otherwise open modal; it will use cache if available or call API
+      openPromptWindow(prompt, id);
+    } catch { /* no-op */ }
   };
 
   const clearAllStudied = () => {
@@ -657,7 +686,7 @@ function App() {
                         <>
                           <button
                             className="icon-btn"
-                            onClick={() => openPromptFor(row.korean)}
+                            onClick={() => openPromptFor(row)}
                             aria-label="Run AI on this Korean text"
                             title="Run AI"
                           >🧠</button>
@@ -678,7 +707,7 @@ function App() {
                         <>
                           <button
                             className="icon-btn"
-                            onClick={() => openPromptFor(row.korean)}
+                            onClick={() => openPromptFor(row)}
                             aria-label="Run AI on this Korean text"
                             title="Run AI"
                           >🧠</button>
