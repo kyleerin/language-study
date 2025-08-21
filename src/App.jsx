@@ -93,6 +93,10 @@ function stringifyCSV(rows) {
 function App() {
   const [rows, setRows] = useState([]);
   const fileInputRef = useRef(null);
+  // Map of row.id -> boolean (loop enabled)
+  const [looping, setLooping] = useState({});
+  // Audio element refs keyed by row id
+  const audioRefs = useRef({});
   const [page, setPage] = useState(1);
   const [studied, setStudied] = useState(() => {
     try {
@@ -199,6 +203,26 @@ function App() {
       const { [id]: _removed, ...rest } = prev;
       return rest;
     });
+  };
+
+  const toggleLoop = (id) => {
+    setLooping(prev => {
+      const next = { ...prev, [id]: !prev[id] };
+      if (!next[id]) delete next[id]; // keep object sparse
+      return next;
+    });
+    // After state updates, attempt to play/pause accordingly in microtask
+    setTimeout(() => {
+      const el = audioRefs.current[id];
+      if (!el) return;
+      if (looping[id]) {
+        // Was looping -> about to disable (since state not yet updated in closure). Pause.
+        try { el.pause(); } catch { /* ignore */ }
+      } else {
+        // Was not looping -> enabling.
+        try { el.currentTime = 0; el.play(); } catch { /* ignore */ }
+      }
+    }, 0);
   };
 
   // Build AI prompt from the Korean text
@@ -362,6 +386,14 @@ function App() {
         const { [id]: _removed, ...rest } = prev;
         return rest;
       });
+      // Remove any looping flag
+      setLooping(prev => {
+        if (!prev[id]) return prev;
+        const { [id]: _removed2, ...rest } = prev;
+        return rest;
+      });
+      // Cleanup audio ref
+      try { delete audioRefs.current[id]; } catch { /* ignore */ }
 
       // Adjust page if current page becomes empty
       setPage(p => {
@@ -677,7 +709,21 @@ function App() {
                   <td className="col-english">{row.english}</td>
                   <td className="col-audio">
                     {row.audio ? (
-                      <audio controls src={`/media/${row.audio}`}/>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <audio
+                          controls
+                          src={`/media/${row.audio}`}
+                          ref={el => { if (el) audioRefs.current[row.id] = el; else delete audioRefs.current[row.id]; }}
+                          loop={!!looping[row.id]}
+                        />
+                        <button
+                          className="icon-btn"
+                          onClick={() => toggleLoop(row.id)}
+                          aria-label={looping[row.id] ? 'Disable repeat' : 'Enable repeat'}
+                          title={looping[row.id] ? 'Disable repeat' : 'Enable repeat'}
+                          style={looping[row.id] ? { background: '#2b2f3a', borderColor: '#4a5568' } : undefined}
+                        >{looping[row.id] ? '🔁' : '↻'}</button>
+                      </div>
                     ) : 'No audio'}
                   </td>
                   <td className="col-action">
