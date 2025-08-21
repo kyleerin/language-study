@@ -175,37 +175,88 @@ function App() {
     });
   };
 
-  // Build and copy an AI prompt based on the Korean text
+  // Build AI prompt from the Korean text and open in a popup window
   const buildPrompt = (koreanText = '') => `translate and explain this: ${koreanText}`;
-  const copyText = async (text) => {
+  const openPromptWindow = (promptText = '') => {
     try {
-      if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
-        return true;
+      const w = window.open('', 'ai-prompt', 'width=720,height=540,resizable,scrollbars');
+      if (!w) {
+        alert('Please allow popups for this site to open the AI prompt.');
+        return;
       }
-    } catch {
-      // fallback below
+      const promptJson = JSON.stringify(String(promptText));
+      const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>AI Prompt</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --panel: #151922;
+      --border: #2a2f3a;
+      --text: #e6e6e6;
+      --muted: #a0a6b1;
+      --btn: #2b2f3a;
+      --btn-hover: #343a49;
+      --btn-border: #3a4150;
+      --btn-border-hover: #4a5568;
+      --input: #0f131a;
+      --accent: #3b82f6;
     }
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.setAttribute('readonly', '');
-      ta.style.position = 'absolute';
-      ta.style.left = '-9999px';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      return true;
-    } catch (err) {
-      console.error('Copy failed', err);
-      alert('Failed to copy prompt to clipboard');
-      return false;
+    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    .wrap { display: flex; flex-direction: column; height: 100%; }
+    header { padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--panel); color: var(--text); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    header .actions { display: flex; align-items: center; gap: 8px; }
+    textarea { flex: 1; width: 100%; resize: none; border: none; padding: 12px; font-size: 14px; line-height: 1.4; background: var(--input); color: var(--text); caret-color: var(--text); }
+    textarea::selection { background: var(--accent); color: #fff; }
+    textarea:focus { outline: 1px solid var(--btn-border); }
+    button { padding: 6px 10px; border-radius: 6px; background: var(--btn); color: var(--text); border: 1px solid var(--btn-border); cursor: pointer; }
+    button:hover { background: var(--btn-hover); border-color: var(--btn-border-hover); }
+  </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <strong style="font-weight: 600;">AI Prompt</strong>
+        <div class="actions">
+          <button id="copyBtn" title="Copy to clipboard">Copy</button>
+          <button id="closeBtn" title="Close window">Close</button>
+        </div>
+      </header>
+      <textarea id="t" spellcheck="false" aria-label="AI prompt"></textarea>
+    </div>
+    <script>
+      const txt = ${promptJson};
+      const t = document.getElementById('t');
+      t.value = txt;
+      t.focus();
+      t.select();
+      document.getElementById('copyBtn').addEventListener('click', async () => {
+        try {
+          if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(t.value); }
+          else {
+            t.select(); document.execCommand('copy');
+          }
+        } catch (e) { alert('Copy failed'); }
+      });
+      document.getElementById('closeBtn').addEventListener('click', () => window.close());
+    </script>
+  </body>
+</html>`;
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+    } catch {
+      // no-op
     }
   };
-  const copyPromptFor = async (koreanText = '') => {
+  const openPromptFor = (koreanText = '') => {
     const prompt = buildPrompt(koreanText);
-    await copyText(prompt);
+    openPromptWindow(prompt);
   };
 
   const clearAllStudied = () => {
@@ -442,9 +493,9 @@ function App() {
                         <>
                           <button
                             className="icon-btn"
-                            onClick={() => copyPromptFor(row.korean)}
-                            aria-label="Copy AI prompt for this Korean text"
-                            title="Copy AI prompt"
+                            onClick={() => openPromptFor(row.korean)}
+                            aria-label="Open AI prompt for this Korean text"
+                            title="Open AI prompt"
                           >🧠</button>
                           <button
                             className="icon-btn"
@@ -463,9 +514,9 @@ function App() {
                         <>
                           <button
                             className="icon-btn"
-                            onClick={() => copyPromptFor(row.korean)}
-                            aria-label="Copy AI prompt for this Korean text"
-                            title="Copy AI prompt"
+                            onClick={() => openPromptFor(row.korean)}
+                            aria-label="Open AI prompt for this Korean text"
+                            title="Open AI prompt"
                           >🧠</button>
                           <button
                             className="icon-btn"
