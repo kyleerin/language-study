@@ -68,3 +68,12 @@ npm run preview
 ```
 
 You can host the generated `dist/` folder on any static file host.
+
+## License
+
+This project is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0).
+
+- Human-readable summary: https://creativecommons.org/licenses/by-nc/4.0/
+- Legal code: https://creativecommons.org/licenses/by-nc/4.0/legalcode
+
+You may share and adapt the material with attribution for noncommercial purposes only. For commercial licensing, please contact the repository owner.
