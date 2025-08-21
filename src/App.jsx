@@ -61,6 +61,17 @@ function parseCSV(text) {
   }).filter(row => row.korean && row.english && row.audio);
 }
 
+function stringifyCSV(rows) {
+  const header = 'korean,english,audio';
+  const esc = (s = '') => {
+    const needs = /[",\n]/.test(s);
+    const v = s.replace(/"/g, '""');
+    return needs ? `"${v}"` : v;
+  };
+  const body = rows.map(r => `${esc(r.korean)},${esc(r.english)},${esc(r.audio)}`);
+  return [header, ...body].join('\n');
+}
+
 function App() {
   const [rows, setRows] = useState([]);
   const fileInputRef = useRef(null);
@@ -154,10 +165,17 @@ function App() {
     if (!file) return;
     try {
       const text = await file.text();
-      // Persist raw CSV so data is always loaded from localStorage on next load
-      localStorage.setItem('app:dataCSV', text);
       const parsed = parseCSV(text);
-      setRows(parsed);
+      // Merge with current rows (dedupe by stable id from korean+english)
+      const map = new Map((rows || []).map(r => [r.id, r]));
+      for (const r of parsed) {
+        if (!map.has(r.id)) map.set(r.id, r);
+      }
+      const merged = Array.from(map.values());
+      // Persist merged CSV so data is always loaded from localStorage on next load
+      const mergedCsv = stringifyCSV(merged);
+      localStorage.setItem('app:dataCSV', mergedCsv);
+      setRows(merged);
     } catch (err) {
       console.error('Failed to import CSV', err);
       alert('Failed to import CSV file. Please check the format.');
