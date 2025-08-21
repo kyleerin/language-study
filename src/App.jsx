@@ -108,6 +108,7 @@ function App() {
       return true;
     }
   });
+  const [search, setSearch] = useState('');
 
   // Load data from localStorage (always) on first mount
   useEffect(() => {
@@ -216,7 +217,9 @@ function App() {
       // Adjust page if current page becomes empty
       setPage(p => {
         try {
-          const nextFilteredCount = (nextRowsSnapshot || []).filter(r => showStudied || !studied[r.id]).length;
+          const q = (search || '').trim().toLowerCase();
+          const matchesSearch = (r) => !q || (r.korean || '').toLowerCase().includes(q) || (r.english || '').toLowerCase().includes(q);
+          const nextFilteredCount = (nextRowsSnapshot || []).filter(r => (showStudied || !studied[r.id]) && matchesSearch(r)).length;
           const newTotal = Math.max(1, Math.ceil(nextFilteredCount / itemsPerPage));
           return Math.min(p, newTotal);
         } catch {
@@ -272,7 +275,14 @@ function App() {
 
   // Derived: filtered rows and pagination
   const itemsPerPage = 10;
-  const filteredRows = rows.filter((row) => showStudied || !studied[row.id]);
+  const q = (search || '').trim().toLowerCase();
+  const filteredRows = rows.filter((row) => {
+    if (!showStudied && studied[row.id]) return false;
+    if (!q) return true;
+    const k = (row.korean || '').toLowerCase();
+    const e = (row.english || '').toLowerCase();
+    return k.includes(q) || e.includes(q);
+  });
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / itemsPerPage));
   const clampedPage = Math.min(Math.max(page, 1), totalPages);
   if (clampedPage !== page) {
@@ -281,6 +291,12 @@ function App() {
   }
   const start = (clampedPage - 1) * itemsPerPage;
   const currentPageRows = filteredRows.slice(start, start + itemsPerPage);
+  const placeholdersCount = Math.max(0, itemsPerPage - currentPageRows.length);
+
+  // Reset to first page whenever search changes so results start from beginning
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
 
   const gotoPrev = () => setPage((p) => Math.max(1, p - 1));
   const gotoNext = () => setPage((p) => Math.min(totalPages, p + 1));
@@ -308,14 +324,34 @@ function App() {
         </div>
       </div>
       <div style={{ margin: '1rem 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <label style={{ marginRight: 12 }}>
-          <input
-            type="checkbox"
-            checked={showStudied}
-            onChange={(e) => setShowStudied(e.target.checked)}
-          />{' '}
-          Show studied
-        </label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search Korean or English…"
+              aria-label="Search Korean or English"
+              style={{ paddingRight: 26 }}
+            />
+            {search ? (
+              <button
+                onClick={() => setSearch('')}
+                aria-label="Clear search"
+                title="Clear search"
+                style={{ position: 'absolute', right: 2, border: 'none', background: 'transparent', cursor: 'pointer', padding: '2px 6px' }}
+              >×</button>
+            ) : null}
+          </div>
+          <label style={{ marginRight: 12 }}>
+            <input
+              type="checkbox"
+              checked={showStudied}
+              onChange={(e) => setShowStudied(e.target.checked)}
+            />{' '}
+            Show studied
+          </label>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ opacity: 0.7, fontSize: 12 }}>
             {Object.keys(studied).length} studied • {showStudied ? 'showing all' : 'hiding studied'}
@@ -329,72 +365,94 @@ function App() {
           </div>
         </div>
       </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Korean</th>
-            <th>English</th>
-            <th>Audio</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-      {filteredRows.length === 0 ? (
+      <div className="table-wrap">
+        <table>
+          <thead>
             <tr>
-              <td colSpan={4}>
-        No data found. {rows.length === 0 ? 'Click "Import CSV" (top right) to load your data.' : 'Try changing filters.'}
-              </td>
+              <th className="col-korean">Korean</th>
+              <th className="col-english">English</th>
+              <th className="col-audio">Audio</th>
+              <th className="col-action">Action</th>
             </tr>
-          ) : (
-      currentPageRows.map((row) => (
-              <tr key={row.id} style={studied[row.id] ? { background: '#d4ffd4' } : {}}>
-                <td>{row.korean}</td>
-                <td>{row.english}</td>
-                <td>
-                  {row.audio ? (
-                    <audio controls src={`/media/${row.audio}`}/>
-                  ) : 'No audio'}
-                </td>
-                <td>
-                  <div className="icon-row-actions">
-                    {studied[row.id] ? (
-                      <>
-                        <button
-                          className="icon-btn"
-                          onClick={() => unmarkStudied(row.id)}
-                          aria-label="Unmark as studied"
-                          title="Unmark as studied"
-                        >↺</button>
-                        <button
-                          className="icon-btn danger"
-                          onClick={() => deleteRow(row.id)}
-                          aria-label="Delete row"
-                          title="Delete row"
-                        >🗑</button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          className="icon-btn"
-                          onClick={() => markStudied(row.id)}
-                          aria-label="Mark as studied"
-                          title="Mark as studied"
-                        >✓</button>
-                        <button
-                          className="icon-btn danger"
-                          onClick={() => deleteRow(row.id)}
-                          aria-label="Delete row"
-                          title="Delete row"
-                        >🗑</button>
-                      </>
-                    )}
-                  </div>
+          </thead>
+          <tbody>
+      {filteredRows.length === 0 ? (
+            <>
+              <tr>
+                <td colSpan={4}>
+          No data found. {rows.length === 0 ? 'Click "Import CSV" (top right) to load your data.' : 'Try changing filters.'}
                 </td>
               </tr>
-            ))
+              {Array.from({ length: itemsPerPage - 1 }).map((_, idx) => (
+                <tr key={`ph-empty-${idx}`} className="placeholder" aria-hidden="true">
+                  <td className="col-korean"></td>
+                  <td className="col-english"></td>
+                  <td className="col-audio"></td>
+                  <td className="col-action"></td>
+                </tr>
+              ))}
+            </>
+          ) : (
+            <>
+              {currentPageRows.map((row) => (
+                <tr key={row.id} style={studied[row.id] ? { background: '#d4ffd4' } : {}}>
+                  <td className="col-korean">{row.korean}</td>
+                  <td className="col-english">{row.english}</td>
+                  <td className="col-audio">
+                    {row.audio ? (
+                      <audio controls src={`/media/${row.audio}`}/>
+                    ) : 'No audio'}
+                  </td>
+                  <td className="col-action">
+                    <div className="icon-row-actions">
+                      {studied[row.id] ? (
+                        <>
+                          <button
+                            className="icon-btn"
+                            onClick={() => unmarkStudied(row.id)}
+                            aria-label="Unmark as studied"
+                            title="Unmark as studied"
+                          >↺</button>
+                          <button
+                            className="icon-btn danger"
+                            onClick={() => deleteRow(row.id)}
+                            aria-label="Delete row"
+                            title="Delete row"
+                          >🗑</button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            className="icon-btn"
+                            onClick={() => markStudied(row.id)}
+                            aria-label="Mark as studied"
+                            title="Mark as studied"
+                          >✓</button>
+                          <button
+                            className="icon-btn danger"
+                            onClick={() => deleteRow(row.id)}
+                            aria-label="Delete row"
+                            title="Delete row"
+                          >🗑</button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {Array.from({ length: placeholdersCount }).map((_, idx) => (
+                <tr key={`ph-${idx}`} className="placeholder" aria-hidden="true">
+                  <td className="col-korean"></td>
+                  <td className="col-english"></td>
+                  <td className="col-audio"></td>
+                  <td className="col-action"></td>
+                </tr>
+              ))}
+            </>
           )}
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

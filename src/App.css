@@ -5,6 +5,11 @@
   text-align: center;
 }
 
+/* Keep layout from shifting when vertical scrollbar appears/disappears */
+html, body {
+  scrollbar-gutter: stable both-edges;
+}
+
 .logo {
   height: 6em;
   padding: 1.5em;
@@ -48,6 +53,37 @@ table td {
   text-align: left;
 }
 
+/* Consistent row heights to prevent vertical layout shift */
+:root { --row-h: 48px; }
+table th, table td { padding: 6px 8px; }
+tbody tr td { height: var(--row-h); }
+table audio { width: 100%; height: 28px; }
+
+/* Stable table container */
+.table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+.table-wrap table {
+  width: 100%;
+  table-layout: fixed; /* prevents column width from changing with content */
+  border-collapse: collapse;
+}
+
+/* Column sizing to avoid horizontal reflow when content changes */
+th.col-korean, td.col-korean { width: 30%; }
+th.col-english, td.col-english { width: 40%; }
+th.col-audio, td.col-audio { width: 20%; }
+th.col-action, td.col-action { width: 10%; }
+
+/* Truncate overflowing cell text with ellipsis to keep width stable */
+table th, table td {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 /* Compact icon-only action buttons */
 .icon-btn {
   display: inline-flex;
@@ -72,3 +108,6 @@ table td {
   align-items: center;
   gap: 4px;
 }
+
+/* Placeholder rows to keep table height stable when filtering/paginating */
+tr.placeholder td { height: var(--row-h); padding: 6px 8px; }
