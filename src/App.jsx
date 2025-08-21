@@ -110,6 +110,13 @@ function App() {
   });
   const [search, setSearch] = useState('');
 
+  // AI modal state
+  const [aiOpen, setAiOpen] = useState(false);
+  // Store prompt implicitly via run call; no separate state needed
+  const [aiResponse, setAiResponse] = useState('');
+  const [aiStatus, setAiStatus] = useState('');
+  const aiAbortRef = useRef(null);
+
   // Load data from localStorage (always) on first mount
   useEffect(() => {
     try {
@@ -175,110 +182,106 @@ function App() {
     });
   };
 
-  // Build AI prompt from the Korean text and open in a popup window
+  // Build AI prompt from the Korean text
   const buildPrompt = (koreanText = '') => `translate and explain this: ${koreanText}`;
-  const openPromptWindow = (promptText = '') => {
+  
+  // Run AI request and display in modal
+  const runAIModal = async (promptText = '') => {
     try {
-      const w = window.open('', 'ai-prompt', 'width=720,height=540,resizable,scrollbars');
-      if (!w) {
-        alert('Please allow popups for this site to open the AI prompt.');
+      setAiStatus('Querying OpenAI…');
+      setAiResponse('');
+      // Abort management
+  if (aiAbortRef.current) { try { aiAbortRef.current.abort(); } catch { /* ignore abort errors */ } }
+      const ac = new AbortController();
+      aiAbortRef.current = ac;
+
+      const key = (localStorage.getItem('openai:key') || '').trim();
+      const model = (localStorage.getItem('openai:model') || 'gpt-4o-mini').trim() || 'gpt-4o-mini';
+      if (!key) {
+        setAiStatus('No API key saved. Open AI Settings in the main app to add your key.');
         return;
       }
-      const promptJson = JSON.stringify(String(promptText));
-      // Pull saved key/model in the opener and embed for reliable access
-      let parentKey = '';
-      let parentModel = 'gpt-4o-mini';
-      try {
-        parentKey = String(localStorage.getItem('openai:key') || '');
-        parentModel = String(localStorage.getItem('openai:model') || parentModel);
-      } catch { void 0; }
-      const keyJson = JSON.stringify(parentKey);
-      const modelJson = JSON.stringify(parentModel);
-      const html = `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="color-scheme" content="dark" />
-  <title>AI Response</title>
-  <style>
-    :root {
-      --bg: #0f1117;
-      --panel: #151922;
-      --border: #2a2f3a;
-      --text: #e6e6e6;
-      --muted: #a0a6b1;
-      --accent: #3b82f6;
-    }
-    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-    .wrap { display: flex; flex-direction: column; height: 100%; }
-    .output { padding: 16px; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word; }
-    .loading { color: var(--muted); padding: 16px; }
-  </style>
-  </head>
-  <body>
-    <div class="wrap">
-      <div id="status" class="loading">Loading…</div>
-      <div class="output" id="out"></div>
-    </div>
-    <script>
-      const txt = ${promptJson};
-      const initialKey = ${keyJson};
-      const initialModel = ${modelJson};
-      const out = document.getElementById('out');
-      const status = document.getElementById('status');
-      const getStored = (k) => { try { return window.localStorage.getItem(k) || ''; } catch { return ''; } };
-      const getOpenerStored = (k) => { try { return window.opener?.localStorage?.getItem(k) || ''; } catch { return ''; } };
-      const key = (initialKey || '').trim() || getStored('openai:key').trim() || getOpenerStored('openai:key').trim();
-      const model = (initialModel || '').trim() || getStored('openai:model').trim() || getOpenerStored('openai:model').trim() || 'gpt-4o-mini';
-      const prompt = txt;
-      const run = async () => {
-        if (!key) {
-          status.textContent = 'No API key saved. Open AI Settings in the main app to add your key.';
-          return;
+      const timeoutMs = 45000;
+      const withTimeout = (p, ms) => new Promise((resolve, reject) => {
+  const to = setTimeout(() => { try { ac.abort(); } catch { /* ignore abort */ } reject(new Error('Request timed out after ' + ms/1000 + 's')); }, ms);
+        p.then(v => { clearTimeout(to); resolve(v); }, e => { clearTimeout(to); reject(e); });
+      });
+      const chatCompletions = async () => {
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'system', content: 'You are a helpful assistant that translates and explains Korean text to English with brief notes.' },
+              { role: 'user', content: promptText }
+            ],
+            temperature: 0.2
+          }),
+          signal: ac.signal
+        });
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '');
+          throw new Error('HTTP ' + res.status + ' ' + res.statusText + (errText ? ('\n' + errText) : ''));
         }
-        status.textContent = 'Querying OpenAI…';
-        try {
-          const res = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer ' + key
-            },
-            body: JSON.stringify({
-              model,
-              messages: [
-                { role: 'system', content: 'You are a helpful assistant that translates and explains Korean text to English with brief notes.' },
-                { role: 'user', content: prompt }
-              ],
-              temperature: 0.2
-            })
-          });
-          if (!res.ok) {
-            const errText = await res.text();
-            throw new Error('HTTP ' + res.status + ' ' + res.statusText + '\n' + errText);
-          }
-          const data = await res.json();
-          const msg = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
-          out.textContent = msg || '[No content]';
-          status.textContent = '';
-        } catch (e) {
-          console.error(e);
-          out.textContent = '';
-          status.textContent = 'Error: ' + (e && e.message ? e.message : 'Unknown error');
-        }
+        const data = await res.json();
+        return (data?.choices?.[0]?.message?.content) || '';
       };
-      run();
-    </script>
-  </body>
-</html>`;
-      w.document.open();
-      w.document.write(html);
-      w.document.close();
-      w.focus();
-    } catch {
-      // no-op
+      const responsesAPI = async () => {
+        const res = await fetch('https://api.openai.com/v1/responses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+          body: JSON.stringify({ model, input: promptText, temperature: 0.2 }),
+          signal: ac.signal
+        });
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '');
+          throw new Error('HTTP ' + res.status + ' ' + res.statusText + (errText ? ('\n' + errText) : ''));
+        }
+        const data = await res.json();
+        if (typeof data?.output_text === 'string' && data.output_text) return data.output_text;
+        if (Array.isArray(data?.output)) {
+          const parts = [];
+          for (const item of data.output) {
+            if (item?.content) {
+              if (Array.isArray(item.content)) parts.push(item.content.map(c => c?.text || '').join(''));
+              else if (typeof item.content === 'string') parts.push(item.content);
+            }
+          }
+          const joined = parts.join('\n').trim();
+          if (joined) return joined;
+        }
+        return JSON.stringify(data, null, 2);
+      };
+
+      let msg = '';
+      try {
+        msg = await withTimeout(chatCompletions(), timeoutMs);
+  } catch {
+        msg = await withTimeout(responsesAPI(), timeoutMs);
+      }
+      setAiResponse(msg || '[No content]');
+      setAiStatus('');
+    } catch (e) {
+      console.error(e);
+      const m = (e && e.message ? e.message : 'Unknown error');
+      const hint = m.includes('Failed to fetch') ? '\nHint: Browser may have blocked the request. Ensure you are running from http(s) and that your network allows calls to api.openai.com.' : '';
+      setAiStatus('Error: ' + m + hint);
     }
+  };
+
+  const closeAIModal = () => {
+    try { if (aiAbortRef.current) aiAbortRef.current.abort(); } catch { /* ignore */ }
+    setAiOpen(false);
+    // Keep last response visible on reopen? Clear for now to avoid stale content
+    setAiResponse('');
+    setAiStatus('');
+  };
+
+  const openPromptWindow = (promptText = '') => {
+    setAiOpen(true);
+    // Defer run to next tick so modal renders immediately
+    setTimeout(() => runAIModal(String(promptText || '')), 0);
   };
   const openPromptFor = (koreanText = '') => {
     const prompt = buildPrompt(koreanText);
@@ -532,6 +535,14 @@ function App() {
   const gotoPrev = () => setPage((p) => Math.max(1, p - 1));
   const gotoNext = () => setPage((p) => Math.min(totalPages, p + 1));
 
+  // Close modal on Escape
+  useEffect(() => {
+    if (!aiOpen) return;
+    const onKey = (e) => { if (e.key === 'Escape') closeAIModal(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [aiOpen]);
+
   return (
     <div className="container">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -701,6 +712,15 @@ function App() {
           </tbody>
         </table>
       </div>
+
+      {aiOpen ? (
+        <div className="modal-overlay" onClick={closeAIModal}>
+          <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+            {aiStatus ? (<div className="ai-status">{aiStatus}</div>) : null}
+            <div className="ai-output" aria-live="polite">{aiResponse}</div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
