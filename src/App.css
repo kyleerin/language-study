@@ -135,3 +135,11 @@ tr.placeholder td { height: var(--row-h); padding: 6px 8px; }
 }
 .ai-status { color: #a0a6b1; margin-bottom: 10px; white-space: pre-wrap; }
 .ai-output { white-space: pre-wrap; line-height: 1.6; font-size: 14px; }
+
+/* Markdown tweaks inside AI output */
+.ai-output h1, .ai-output h2, .ai-output h3 { margin: 0.6em 0 0.4em; }
+.ai-output p { margin: 0.4em 0; }
+.ai-output ul, .ai-output ol { padding-left: 1.25em; margin: 0.4em 0; }
+.ai-output code { background: #0b0f16; padding: 0 3px; border-radius: 4px; }
+.ai-output pre { background: #0b0f16; padding: 10px; border-radius: 8px; overflow: auto; }
+.ai-output pre code { background: transparent; padding: 0; }

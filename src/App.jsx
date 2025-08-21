@@ -1,5 +1,6 @@
 
 import { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import './App.css';
 
 // Stable ID based on korean+english
@@ -717,7 +718,9 @@ function App() {
         <div className="modal-overlay" onClick={closeAIModal}>
           <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
             {aiStatus ? (<div className="ai-status">{aiStatus}</div>) : null}
-            <div className="ai-output" aria-live="polite">{aiResponse}</div>
+            <div className="ai-output" aria-live="polite">
+              <ReactMarkdown>{aiResponse || ''}</ReactMarkdown>
+            </div>
           </div>
         </div>
       ) : null}
