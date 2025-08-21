@@ -8,6 +8,7 @@ Authoritative project-level guidance for GitHub Copilot Chat, code completion, a
 - "Studied" state is keyed by stable row IDs and saved at `studiedRows`.
 - UI includes pagination (10 items/page) and a Show Studied toggle.
 - Don't automatically do any git related commands
+- Don't worry about linting or testing the build
 
 ## Data rules
 - CSV columns: `korean`, `english`, `audio` (filename under `public/media`).
