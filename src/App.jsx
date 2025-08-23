@@ -629,17 +629,14 @@ function App() {
   };
   const currentSingleRow = singleView ? filteredRows[singleIndex] : null;
 
-  const toggleViewMode = () => {
-    setSingleView(v => {
-      const next = !v;
-      if (!v && filteredRows.length) {
-        // switching into single view: pick first item of current page as starting point
-        const startIdx = (clampedPage - 1) * itemsPerPage;
-        setSingleIndex(startIdx < filteredRows.length ? startIdx : 0);
-      }
-      return next;
-    });
+  const enterSingleView = () => {
+    if (!singleView) {
+      const startIdx = (clampedPage - 1) * itemsPerPage;
+      setSingleIndex(startIdx < filteredRows.length ? startIdx : 0);
+    }
+    setSingleView(true);
   };
+  const enterTableView = () => setSingleView(false);
 
   // Close modal on Escape
   useEffect(() => {
@@ -732,10 +729,23 @@ function App() {
           </div>
         </div>
       </div>
-      <div style={{ marginBottom: 16 }}>
-        <button onClick={toggleViewMode} aria-label="Toggle single item view" title="Toggle single item view">
-          {singleView ? 'Table View' : 'Single View'}
-        </button>
+      <div className="view-mode-switch" style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }}>
+        <div className="view-mode-inner">
+          <button
+            className={!singleView ? 'active' : ''}
+            onClick={enterTableView}
+            aria-label="Show table view"
+            title="Show table view"
+            disabled={!singleView}
+          >Table View</button>
+          <button
+            className={singleView ? 'active' : ''}
+            onClick={enterSingleView}
+            aria-label="Show single item view"
+            title="Show single item view"
+            disabled={singleView}
+          >Single View</button>
+        </div>
       </div>
       {singleView ? (
         <div className="single-view">

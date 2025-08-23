@@ -176,3 +176,10 @@ tr.studied td:first-child::before {
   .single-card .korean { font-size: 1.9rem !important; }
   .single-card .english { font-size: 1.2rem !important; }
 }
+
+/* View mode switch (segmented control) */
+.view-mode-switch .view-mode-inner { display: inline-flex; background: #151922; padding: 4px; border-radius: 12px; border: 1px solid #2a2f3a; gap: 4px; }
+.view-mode-switch button { background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 6px 14px; font-size: 13px; cursor: pointer; color: #bbb; transition: background .15s, color .15s, border-color .15s; }
+.view-mode-switch button:hover:not(:disabled) { background: #1e242e; color: #e6e6e6; }
+.view-mode-switch button.active { background: #2b303a; color: #fff; border-color: #3a4351; }
+.view-mode-switch button:disabled { opacity: 0.7; cursor: default; }
