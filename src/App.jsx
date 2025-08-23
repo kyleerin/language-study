@@ -720,13 +720,15 @@ function App() {
           <span style={{ opacity: 0.7, fontSize: 12 }}>
             {Object.keys(studied).length} studied • {showStudied ? 'showing all' : 'hiding studied'}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={gotoPrev} disabled={clampedPage <= 1} aria-label="Previous page">‹ Prev</button>
-            <span style={{ fontSize: 12, opacity: 0.8 }}>
-              Page {clampedPage} / {totalPages}
-            </span>
-            <button onClick={gotoNext} disabled={clampedPage >= totalPages} aria-label="Next page">Next ›</button>
-          </div>
+          {!singleView && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button onClick={gotoPrev} disabled={clampedPage <= 1} aria-label="Previous page">‹ Prev</button>
+              <span style={{ fontSize: 12, opacity: 0.8 }}>
+                Page {clampedPage} / {totalPages}
+              </span>
+              <button onClick={gotoNext} disabled={clampedPage >= totalPages} aria-label="Next page">Next ›</button>
+            </div>
+          )}
         </div>
       </div>
       <div className="view-mode-switch" style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }}>
