@@ -114,6 +114,9 @@ function App() {
     }
   });
   const [search, setSearch] = useState('');
+  // Single-item study view state
+  const [singleView, setSingleView] = useState(false);
+  const [singleIndex, setSingleIndex] = useState(0); // index within filteredRows
 
   // AI modal state
   const [aiOpen, setAiOpen] = useState(false);
@@ -407,6 +410,18 @@ function App() {
           return p;
         }
       });
+
+      // If in single view, clamp index if needed
+      if (singleView) {
+        setSingleIndex(i => {
+          const idxInFiltered = filteredRows.findIndex(r => r.id === id);
+          if (idxInFiltered !== -1 && i >= idxInFiltered) {
+            // shift left if we deleted an item at or before current index
+            return Math.max(0, i - 1);
+          }
+          return i;
+        });
+      }
     } catch {
       // no-op
     }
@@ -597,6 +612,35 @@ function App() {
   const gotoPrev = () => setPage((p) => Math.max(1, p - 1));
   const gotoNext = () => setPage((p) => Math.min(totalPages, p + 1));
 
+  // When filteredRows length changes, clamp singleIndex
+  useEffect(() => {
+    if (!singleView) return;
+    setSingleIndex(i => {
+      if (filteredRows.length === 0) return 0;
+      return Math.min(Math.max(0, i), filteredRows.length - 1);
+    });
+  }, [filteredRows.length, singleView]);
+
+  const gotoSinglePrev = () => {
+    setSingleIndex(i => Math.max(0, i - 1));
+  };
+  const gotoSingleNext = () => {
+    setSingleIndex(i => Math.min(filteredRows.length - 1, i + 1));
+  };
+  const currentSingleRow = singleView ? filteredRows[singleIndex] : null;
+
+  const toggleViewMode = () => {
+    setSingleView(v => {
+      const next = !v;
+      if (!v && filteredRows.length) {
+        // switching into single view: pick first item of current page as starting point
+        const startIdx = (clampedPage - 1) * itemsPerPage;
+        setSingleIndex(startIdx < filteredRows.length ? startIdx : 0);
+      }
+      return next;
+    });
+  };
+
   // Close modal on Escape
   useEffect(() => {
     if (!aiOpen) return;
@@ -604,6 +648,20 @@ function App() {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [aiOpen]);
+
+  // Keyboard navigation in single view (Left/Right arrows)
+  useEffect(() => {
+    if (!singleView) return;
+    const onKey = (e) => {
+      if (e.key === 'ArrowLeft') {
+        setSingleIndex(i => Math.max(0, i - 1));
+      } else if (e.key === 'ArrowRight') {
+        setSingleIndex(i => Math.min(filteredRows.length - 1, i + 1));
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [singleView, filteredRows.length]);
 
   return (
     <div className="container">
@@ -674,120 +732,180 @@ function App() {
           </div>
         </div>
       </div>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th className="col-korean">Korean</th>
-              <th className="col-english">English</th>
-              <th className="col-audio">Audio</th>
-              <th className="col-action">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-      {filteredRows.length === 0 ? (
-            <>
-              <tr>
-                <td colSpan={4}>
-          No data found. {rows.length === 0 ? 'Click "Import CSV" (top right) to load your data.' : 'Try changing filters.'}
-                </td>
-              </tr>
-              {Array.from({ length: itemsPerPage - 1 }).map((_, idx) => (
-                <tr key={`ph-empty-${idx}`} className="placeholder" aria-hidden="true">
-                  <td className="col-korean"></td>
-                  <td className="col-english"></td>
-                  <td className="col-audio"></td>
-                  <td className="col-action"></td>
-                </tr>
-              ))}
-            </>
-          ) : (
-            <>
-              {currentPageRows.map((row) => (
-                <tr key={row.id} className={studied[row.id] ? 'studied' : ''}>
-                  <td className="col-korean">{row.korean}</td>
-                  <td className="col-english">{row.english}</td>
-                  <td className="col-audio">
-                    {row.audio ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <audio
-                          controls
-                          src={`/media/${row.audio}`}
-                          ref={el => { if (el) audioRefs.current[row.id] = el; else delete audioRefs.current[row.id]; }}
-                          loop={!!looping[row.id]}
-                        />
-                        <button
-                          className="icon-btn"
-                          onClick={() => toggleLoop(row.id)}
-                          aria-label={looping[row.id] ? 'Disable repeat' : 'Enable repeat'}
-                          title={looping[row.id] ? 'Disable repeat' : 'Enable repeat'}
-                          style={looping[row.id] ? { background: '#2b2f3a', borderColor: '#4a5568' } : undefined}
-                        >{looping[row.id] ? '🔁' : '↻'}</button>
-                      </div>
-                    ) : 'No audio'}
-                  </td>
-                  <td className="col-action">
-                    <div className="icon-row-actions">
-                      {studied[row.id] ? (
-                        <>
-                          <button
-                            className="icon-btn"
-                            onClick={() => openPromptFor(row)}
-                            aria-label="Run AI on this Korean text"
-                            title="Run AI"
-                          >🧠</button>
-                          <button
-                            className="icon-btn"
-                            onClick={() => unmarkStudied(row.id)}
-                            aria-label="Unmark as studied"
-                            title="Unmark as studied"
-                          >↺</button>
-                          <button
-                            className="icon-btn danger"
-                            onClick={() => deleteRow(row.id)}
-                            aria-label="Delete row"
-                            title="Delete row"
-                          >🗑</button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            className="icon-btn"
-                            onClick={() => openPromptFor(row)}
-                            aria-label="Run AI on this Korean text"
-                            title="Run AI"
-                          >🧠</button>
-                          <button
-                            className="icon-btn"
-                            onClick={() => markStudied(row.id)}
-                            aria-label="Mark as studied"
-                            title="Mark as studied"
-                          >✓</button>
-                          <button
-                            className="icon-btn danger"
-                            onClick={() => deleteRow(row.id)}
-                            aria-label="Delete row"
-                            title="Delete row"
-                          >🗑</button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {Array.from({ length: placeholdersCount }).map((_, idx) => (
-                <tr key={`ph-${idx}`} className="placeholder" aria-hidden="true">
-                  <td className="col-korean"></td>
-                  <td className="col-english"></td>
-                  <td className="col-audio"></td>
-                  <td className="col-action"></td>
-                </tr>
-              ))}
-            </>
-          )}
-          </tbody>
-        </table>
+      <div style={{ marginBottom: 16 }}>
+        <button onClick={toggleViewMode} aria-label="Toggle single item view" title="Toggle single item view">
+          {singleView ? 'Table View' : 'Single View'}
+        </button>
       </div>
+      {singleView ? (
+        <div className="single-view">
+          {filteredRows.length === 0 ? (
+            <div className="single-empty">No data found. {rows.length === 0 ? 'Click "Import CSV" (top right) to load your data.' : 'Try changing filters.'}</div>
+          ) : (
+            <div className="single-card">
+              <div className="single-text korean" style={{ fontSize: '2.2rem', marginBottom: 12 }}>
+                {currentSingleRow?.korean}
+              </div>
+              <div className="single-text english" style={{ fontSize: '1.4rem', marginBottom: 20, opacity: 0.9 }}>
+                {currentSingleRow?.english}
+              </div>
+              <div className="single-audio" style={{ marginBottom: 18 }}>
+                {currentSingleRow?.audio ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
+                    <audio
+                      controls
+                      src={`/media/${currentSingleRow.audio}`}
+                      ref={el => { if (el && currentSingleRow) audioRefs.current[currentSingleRow.id] = el; }}
+                      loop={!!looping[currentSingleRow?.id]}
+                      style={{ width: 360, maxWidth: '90%' }}
+                    />
+                    {currentSingleRow ? (
+                      <button
+                        className="icon-btn"
+                        onClick={() => toggleLoop(currentSingleRow.id)}
+                        aria-label={looping[currentSingleRow.id] ? 'Disable repeat' : 'Enable repeat'}
+                        title={looping[currentSingleRow.id] ? 'Disable repeat' : 'Enable repeat'}
+                        style={looping[currentSingleRow.id] ? { background: '#2b2f3a', borderColor: '#4a5568' } : undefined}
+                      >{looping[currentSingleRow.id] ? '🔁' : '↻'}</button>
+                    ) : null}
+                  </div>
+                ) : 'No audio'}
+              </div>
+              {currentSingleRow ? (
+                <div className="single-actions" style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
+                  <button className="icon-btn" onClick={() => openPromptFor(currentSingleRow)} title="Run AI" aria-label="Run AI">🧠</button>
+                  {studied[currentSingleRow.id] ? (
+                    <button className="icon-btn" onClick={() => unmarkStudied(currentSingleRow.id)} title="Unmark studied" aria-label="Unmark studied">↺</button>
+                  ) : (
+                    <button className="icon-btn" onClick={() => markStudied(currentSingleRow.id)} title="Mark studied" aria-label="Mark studied">✓</button>
+                  )}
+                  <button className="icon-btn danger" onClick={() => deleteRow(currentSingleRow.id)} title="Delete" aria-label="Delete">🗑</button>
+                </div>
+              ) : null}
+              <div className="single-nav" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+                <button onClick={gotoSinglePrev} disabled={singleIndex <= 0} aria-label="Previous item">‹ Prev</button>
+                <span style={{ fontSize: 12, opacity: 0.8 }}>{filteredRows.length ? (singleIndex + 1) : 0} / {filteredRows.length}</span>
+                <button onClick={gotoSingleNext} disabled={singleIndex >= filteredRows.length - 1} aria-label="Next item">Next ›</button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th className="col-korean">Korean</th>
+                <th className="col-english">English</th>
+                <th className="col-audio">Audio</th>
+                <th className="col-action">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+        {filteredRows.length === 0 ? (
+              <>
+                <tr>
+                  <td colSpan={4}>
+            No data found. {rows.length === 0 ? 'Click "Import CSV" (top right) to load your data.' : 'Try changing filters.'}
+                  </td>
+                </tr>
+                {Array.from({ length: itemsPerPage - 1 }).map((_, idx) => (
+                  <tr key={`ph-empty-${idx}`} className="placeholder" aria-hidden="true">
+                    <td className="col-korean"></td>
+                    <td className="col-english"></td>
+                    <td className="col-audio"></td>
+                    <td className="col-action"></td>
+                  </tr>
+                ))}
+              </>
+            ) : (
+              <>
+                {currentPageRows.map((row) => (
+                  <tr key={row.id} className={studied[row.id] ? 'studied' : ''}>
+                    <td className="col-korean">{row.korean}</td>
+                    <td className="col-english">{row.english}</td>
+                    <td className="col-audio">
+                      {row.audio ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <audio
+                            controls
+                            src={`/media/${row.audio}`}
+                            ref={el => { if (el) audioRefs.current[row.id] = el; else delete audioRefs.current[row.id]; }}
+                            loop={!!looping[row.id]}
+                          />
+                          <button
+                            className="icon-btn"
+                            onClick={() => toggleLoop(row.id)}
+                            aria-label={looping[row.id] ? 'Disable repeat' : 'Enable repeat'}
+                            title={looping[row.id] ? 'Disable repeat' : 'Enable repeat'}
+                            style={looping[row.id] ? { background: '#2b2f3a', borderColor: '#4a5568' } : undefined}
+                          >{looping[row.id] ? '🔁' : '↻'}</button>
+                        </div>
+                      ) : 'No audio'}
+                    </td>
+                    <td className="col-action">
+                      <div className="icon-row-actions">
+                        {studied[row.id] ? (
+                          <>
+                            <button
+                              className="icon-btn"
+                              onClick={() => openPromptFor(row)}
+                              aria-label="Run AI on this Korean text"
+                              title="Run AI"
+                            >🧠</button>
+                            <button
+                              className="icon-btn"
+                              onClick={() => unmarkStudied(row.id)}
+                              aria-label="Unmark as studied"
+                              title="Unmark as studied"
+                            >↺</button>
+                            <button
+                              className="icon-btn danger"
+                              onClick={() => deleteRow(row.id)}
+                              aria-label="Delete row"
+                              title="Delete row"
+                            >🗑</button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              className="icon-btn"
+                              onClick={() => openPromptFor(row)}
+                              aria-label="Run AI on this Korean text"
+                              title="Run AI"
+                            >🧠</button>
+                            <button
+                              className="icon-btn"
+                              onClick={() => markStudied(row.id)}
+                              aria-label="Mark as studied"
+                              title="Mark as studied"
+                            >✓</button>
+                            <button
+                              className="icon-btn danger"
+                              onClick={() => deleteRow(row.id)}
+                              aria-label="Delete row"
+                              title="Delete row"
+                            >🗑</button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {Array.from({ length: placeholdersCount }).map((_, idx) => (
+                  <tr key={`ph-${idx}`} className="placeholder" aria-hidden="true">
+                    <td className="col-korean"></td>
+                    <td className="col-english"></td>
+                    <td className="col-audio"></td>
+                    <td className="col-action"></td>
+                  </tr>
+                ))}
+              </>
+            )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {aiOpen ? (
         <div className="modal-overlay" onClick={closeAIModal}>

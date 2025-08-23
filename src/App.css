@@ -161,3 +161,18 @@ tr.studied td:first-child::before {
 .ai-output code { background: #0b0f16; padding: 0 3px; border-radius: 4px; }
 .ai-output pre { background: #0b0f16; padding: 10px; border-radius: 8px; overflow: auto; }
 .ai-output pre code { background: transparent; padding: 0; }
+
+/* Single item study view */
+.single-view { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 420px; }
+.single-card { width: 100%; max-width: 760px; background: #151922; border: 1px solid #2a2f3a; border-radius: 16px; padding: 32px 28px 28px; box-shadow: 0 12px 32px -8px rgba(0,0,0,0.4); }
+.single-card .korean { font-weight: 600; }
+.single-card .english { font-weight: 400; }
+.single-actions button { width: 44px; height: 44px; font-size: 18px; }
+.single-nav { margin-top: 4px; }
+.single-empty { opacity: 0.8; padding: 40px 0; }
+@media (max-width: 640px) {
+  .single-card { padding: 26px 20px 24px; }
+  .single-actions button { width: 40px; height: 40px; }
+  .single-card .korean { font-size: 1.9rem !important; }
+  .single-card .english { font-size: 1.2rem !important; }
+}
