@@ -663,7 +663,7 @@ function App() {
   return (
     <div className="container">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h1 style={{ margin: 0 }}>Korean Words Table</h1>
+        <h1 style={{ margin: 0 }}>Phrases</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <input
             ref={fileInputRef}
