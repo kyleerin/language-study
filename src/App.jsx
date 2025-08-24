@@ -688,34 +688,36 @@ function App() {
         </div>
       </div>
       <div style={{ margin: '1rem 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search Korean or English…"
-              aria-label="Search Korean or English"
-              style={{ paddingRight: 26 }}
-            />
-            {search ? (
-              <button
-                onClick={() => setSearch('')}
-                aria-label="Clear search"
-                title="Clear search"
-                style={{ position: 'absolute', right: 2, border: 'none', background: 'transparent', cursor: 'pointer', padding: '2px 6px' }}
-              >×</button>
-            ) : null}
+        {!singleView && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search Korean or English…"
+                aria-label="Search Korean or English"
+                style={{ paddingRight: 26 }}
+              />
+              {search ? (
+                <button
+                  onClick={() => setSearch('')}
+                  aria-label="Clear search"
+                  title="Clear search"
+                  style={{ position: 'absolute', right: 2, border: 'none', background: 'transparent', cursor: 'pointer', padding: '2px 6px' }}
+                >×</button>
+              ) : null}
+            </div>
+            <label style={{ marginRight: 12 }}>
+              <input
+                type="checkbox"
+                checked={showStudied}
+                onChange={(e) => setShowStudied(e.target.checked)}
+              />{' '}
+              Show studied
+            </label>
           </div>
-          <label style={{ marginRight: 12 }}>
-            <input
-              type="checkbox"
-              checked={showStudied}
-              onChange={(e) => setShowStudied(e.target.checked)}
-            />{' '}
-            Show studied
-          </label>
-        </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ opacity: 0.7, fontSize: 12 }}>
             {Object.keys(studied).length} studied • {showStudied ? 'showing all' : 'hiding studied'}
