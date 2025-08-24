@@ -733,8 +733,8 @@ function App() {
           )}
         </div>
       </div>
-      <div className="view-mode-switch" style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }}>
-        <div className="view-mode-inner">
+      <div className="view-mode-switch" style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-start' }}>
+        <div className="view-mode-inner" style={{ marginLeft: 0 }}>
           <button
             className={!singleView ? 'active' : ''}
             onClick={enterTableView}
@@ -785,6 +785,7 @@ function App() {
                   </div>
                 ) : 'No audio'}
               </div>
+              <div className="flex-spacer" />
               {currentSingleRow ? (
                 <div className="single-actions" style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
                   <button className="icon-btn" onClick={() => openPromptFor(currentSingleRow)} title="Run AI" aria-label="Run AI">🧠</button>
@@ -858,7 +859,8 @@ function App() {
                       ) : 'No audio'}
                     </td>
                     <td className="col-action">
-                      <div className="icon-row-actions">
+                      <div className="action-cell-inner">
+                        <div className="icon-row-actions">
                         {studied[row.id] ? (
                           <>
                             <button
@@ -902,6 +904,7 @@ function App() {
                             >🗑</button>
                           </>
                         )}
+                        </div>
                       </div>
                     </td>
                   </tr>
