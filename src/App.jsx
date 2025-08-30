@@ -120,7 +120,7 @@ function App() {
   // Random-item study view state
   const [randomView, setRandomView] = useState(false);
   const [randomIndex, setRandomIndex] = useState(null); // null until selected
-  const [randomHistory, setRandomHistory] = useState([]); // track previous indices for simple back navigation
+  const [randomSeen, setRandomSeen] = useState([]); // indices we've already shown in this random session
 
   // AI modal state
   const [aiOpen, setAiOpen] = useState(false);
@@ -659,33 +659,30 @@ function App() {
   };
   const enterTableView = () => { setSingleView(false); setRandomView(false); };
 
-  const pickRandomIndex = (avoidSame = true) => {
-    if (!filteredRows.length) { setRandomIndex(null); return; }
-    if (filteredRows.length === 1) { setRandomIndex(0); return; }
-    let idx;
-    const attempts = 20;
-    for (let i = 0; i < attempts; i++) {
-      idx = Math.floor(Math.random() * filteredRows.length);
-      if (!avoidSame || idx !== randomIndex) break;
+  const pickRandomIndex = () => {
+    if (!filteredRows.length) { setRandomIndex(null); setRandomSeen([]); return; }
+    // Build a list of unseen indices
+    const total = filteredRows.length;
+    const seenSet = new Set(randomSeen);
+    const unseen = [];
+    for (let i = 0; i < total; i++) if (!seenSet.has(i)) unseen.push(i);
+    if (unseen.length === 0) {
+      // All seen – keep current index, nothing to do
+      return;
     }
+    const idx = unseen[Math.floor(Math.random() * unseen.length)];
     setRandomIndex(idx);
-    setRandomHistory(h => [...h, idx].slice(-100));
+    setRandomSeen(prev => [...prev, idx]);
   };
   const enterRandomView = () => {
     setSingleView(false);
     setRandomView(true);
-    pickRandomIndex(false);
+    setRandomSeen([]);
+    setRandomIndex(null);
+    // Defer to next tick so filteredRows (if changed) are considered
+    setTimeout(() => pickRandomIndex(), 0);
   };
-  const gotoRandomPrev = () => {
-    setRandomHistory(h => {
-      if (h.length <= 1) return h; // nothing to go back to
-      const next = h.slice(0, -1);
-      const prevIdx = next[next.length - 1];
-      setRandomIndex(prevIdx);
-      return next;
-    });
-  };
-  const gotoRandomNext = () => pickRandomIndex(true);
+  const allRandomSeen = randomSeen.length && filteredRows.length && randomSeen.length >= filteredRows.length;
 
   // Close modal on Escape
   useEffect(() => {
@@ -709,20 +706,20 @@ function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [singleView, filteredRows.length]);
 
-  // Keyboard navigation in random view: Left = previous random (history), Right/Space = next random
+  // Keyboard in random view: Space / Right Arrow -> next random (unseen)
   useEffect(() => {
     if (!randomView) return;
     const onKey = (e) => {
-      if (e.key === 'ArrowLeft') {
-        gotoRandomPrev();
-      } else if (e.key === 'ArrowRight' || e.code === 'Space') {
-        e.preventDefault();
-        gotoRandomNext();
+      if (e.key === 'ArrowRight' || e.code === 'Space') {
+        if (!allRandomSeen) {
+          e.preventDefault();
+          pickRandomIndex();
+        }
       }
     };
     window.addEventListener('keydown', onKey, { passive: false });
     return () => window.removeEventListener('keydown', onKey);
-  }, [randomView, filteredRows.length, randomIndex]);
+  }, [randomView, filteredRows.length, randomIndex, allRandomSeen]);
 
   return (
     <div className="container">
@@ -922,10 +919,13 @@ function App() {
                   <button className="icon-btn danger" onClick={() => deleteRow(filteredRows[randomIndex].id)} title="Delete" aria-label="Delete">🗑</button>
                 </div>
               ) : null}
-              <div className="single-nav" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-                <button onClick={gotoRandomPrev} disabled={randomHistory.length <= 1} aria-label="Previous random item">‹ Prev</button>
-                <span style={{ fontSize: 12, opacity: 0.8 }}>{filteredRows.length && randomIndex != null ? (filteredRows[randomIndex] ? (randomHistory.length) : 0) : 0} shown</span>
-                <button onClick={gotoRandomNext} disabled={filteredRows.length <= 1} aria-label="Next random item">Next ›</button>
+              <div className="single-nav" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <button
+                  onClick={pickRandomIndex}
+                  disabled={allRandomSeen}
+                  aria-label="Show another random unseen item"
+                >{allRandomSeen ? 'All items seen' : 'Another Random'}</button>
+                <span style={{ fontSize: 12, opacity: 0.7 }}>{randomSeen.length} / {filteredRows.length} seen</span>
               </div>
             </div>
           )}
