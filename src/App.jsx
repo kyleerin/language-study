@@ -249,7 +249,7 @@ function App() {
       aiAbortRef.current = ac;
 
       const key = (localStorage.getItem('openai:key') || '').trim();
-      const model = (localStorage.getItem('openai:model') || 'gpt-4o-mini').trim() || 'gpt-4o-mini';
+  const model = (localStorage.getItem('openai:model') || 'gpt-5').trim() || 'gpt-5';
       if (!key) {
         setAiStatus('No API key saved. Open AI Settings in the main app to add your key.');
         return;
@@ -259,12 +259,12 @@ function App() {
   const to = setTimeout(() => { try { ac.abort(); } catch { /* ignore abort */ } reject(new Error('Request timed out after ' + ms/1000 + 's')); }, ms);
         p.then(v => { clearTimeout(to); resolve(v); }, e => { clearTimeout(to); reject(e); });
       });
-      const chatCompletions = async () => {
+      const chatCompletions = async (overrideModel) => {
         const res = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
           body: JSON.stringify({
-            model,
+            model: overrideModel || model,
             messages: [
               { role: 'system', content: 'You are a helpful assistant that translates and explains Korean text to English with brief notes.' },
               { role: 'user', content: promptText }
@@ -280,11 +280,11 @@ function App() {
         const data = await res.json();
         return (data?.choices?.[0]?.message?.content) || '';
       };
-      const responsesAPI = async () => {
+      const responsesAPI = async (overrideModel) => {
         const res = await fetch('https://api.openai.com/v1/responses', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-          body: JSON.stringify({ model, input: promptText, temperature: 0.2 }),
+          body: JSON.stringify({ model: overrideModel || model, input: promptText, temperature: 0.2 }),
           signal: ac.signal
         });
         if (!res.ok) {
@@ -308,11 +308,26 @@ function App() {
       };
 
       let msg = '';
-      try {
-        msg = await withTimeout(chatCompletions(), timeoutMs);
-  } catch {
-        msg = await withTimeout(responsesAPI(), timeoutMs);
+      // Attempt with chosen model; if fails and was gpt-5, fallback automatically to gpt-4o-mini
+      const primaryModel = model;
+      const fallbackModel = primaryModel === 'gpt-5' ? 'gpt-4o-mini' : null;
+      const attemptSequence = [
+        { fn: () => chatCompletions(primaryModel) },
+        { fn: () => responsesAPI(primaryModel) },
+        ...(fallbackModel ? [
+          { fn: () => chatCompletions(fallbackModel) },
+          { fn: () => responsesAPI(fallbackModel) }
+        ] : [])
+      ];
+      let success = false;
+      for (const step of attemptSequence) {
+        try {
+          msg = await withTimeout(step.fn(), timeoutMs);
+          success = true;
+          break;
+        } catch { /* try next */ }
       }
+      if (!success) throw new Error('All model attempts failed');
   setAiResponse(msg || '[No content]');
   if (cacheKey && msg) setAICacheValue(cacheKey, msg);
       setAiStatus('');
@@ -479,7 +494,8 @@ function App() {
         <div class="field">
           <label for="model">Default Model</label>
           <select id="model">
-            <option value="gpt-4o-mini" selected>gpt-4o-mini</option>
+            <option value="gpt-5" selected>gpt-5</option>
+            <option value="gpt-4o-mini">gpt-4o-mini</option>
             <option value="gpt-4o">gpt-4o</option>
             <option value="gpt-4.1-mini">gpt-4.1-mini</option>
           </select>
