@@ -117,6 +117,10 @@ function App() {
   // Single-item study view state
   const [singleView, setSingleView] = useState(false);
   const [singleIndex, setSingleIndex] = useState(0); // index within filteredRows
+  // Random-item study view state
+  const [randomView, setRandomView] = useState(false);
+  const [randomIndex, setRandomIndex] = useState(null); // null until selected
+  const [randomHistory, setRandomHistory] = useState([]); // track previous indices for simple back navigation
 
   // AI modal state
   const [aiOpen, setAiOpen] = useState(false);
@@ -650,9 +654,38 @@ function App() {
       const startIdx = (clampedPage - 1) * itemsPerPage;
       setSingleIndex(startIdx < filteredRows.length ? startIdx : 0);
     }
+    setRandomView(false);
     setSingleView(true);
   };
-  const enterTableView = () => setSingleView(false);
+  const enterTableView = () => { setSingleView(false); setRandomView(false); };
+
+  const pickRandomIndex = (avoidSame = true) => {
+    if (!filteredRows.length) { setRandomIndex(null); return; }
+    if (filteredRows.length === 1) { setRandomIndex(0); return; }
+    let idx;
+    const attempts = 20;
+    for (let i = 0; i < attempts; i++) {
+      idx = Math.floor(Math.random() * filteredRows.length);
+      if (!avoidSame || idx !== randomIndex) break;
+    }
+    setRandomIndex(idx);
+    setRandomHistory(h => [...h, idx].slice(-100));
+  };
+  const enterRandomView = () => {
+    setSingleView(false);
+    setRandomView(true);
+    pickRandomIndex(false);
+  };
+  const gotoRandomPrev = () => {
+    setRandomHistory(h => {
+      if (h.length <= 1) return h; // nothing to go back to
+      const next = h.slice(0, -1);
+      const prevIdx = next[next.length - 1];
+      setRandomIndex(prevIdx);
+      return next;
+    });
+  };
+  const gotoRandomNext = () => pickRandomIndex(true);
 
   // Close modal on Escape
   useEffect(() => {
@@ -675,6 +708,21 @@ function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [singleView, filteredRows.length]);
+
+  // Keyboard navigation in random view: Left = previous random (history), Right/Space = next random
+  useEffect(() => {
+    if (!randomView) return;
+    const onKey = (e) => {
+      if (e.key === 'ArrowLeft') {
+        gotoRandomPrev();
+      } else if (e.key === 'ArrowRight' || e.code === 'Space') {
+        e.preventDefault();
+        gotoRandomNext();
+      }
+    };
+    window.addEventListener('keydown', onKey, { passive: false });
+    return () => window.removeEventListener('keydown', onKey);
+  }, [randomView, filteredRows.length, randomIndex]);
 
   return (
     <div className="container">
@@ -704,7 +752,7 @@ function App() {
         </div>
       </div>
       <div style={{ margin: '1rem 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        {!singleView && (
+        {!singleView && !randomView && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <input
@@ -738,7 +786,7 @@ function App() {
           <span style={{ opacity: 0.7, fontSize: 12 }}>
             {Object.keys(studied).length} studied • {showStudied ? 'showing all' : 'hiding studied'}
           </span>
-          {!singleView && (
+          {!singleView && !randomView && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button onClick={gotoPrev} disabled={clampedPage <= 1} aria-label="Previous page">‹ Prev</button>
               <span style={{ fontSize: 12, opacity: 0.8 }}>
@@ -752,11 +800,11 @@ function App() {
       <div className="view-mode-switch" style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-start' }}>
         <div className="view-mode-inner" style={{ marginLeft: 0 }}>
           <button
-            className={!singleView ? 'active' : ''}
+            className={!singleView && !randomView ? 'active' : ''}
             onClick={enterTableView}
             aria-label="Show table view"
             title="Show table view"
-            disabled={!singleView}
+            disabled={!singleView && !randomView}
           >Table View</button>
           <button
             className={singleView ? 'active' : ''}
@@ -765,6 +813,13 @@ function App() {
             title="Show single item view"
             disabled={singleView}
           >Single View</button>
+          <button
+            className={randomView ? 'active' : ''}
+            onClick={enterRandomView}
+            aria-label="Show random item view"
+            title="Show random item view"
+            disabled={randomView}
+          >Random View</button>
         </div>
       </div>
       {singleView ? (
@@ -817,6 +872,60 @@ function App() {
                 <button onClick={gotoSinglePrev} disabled={singleIndex <= 0} aria-label="Previous item">‹ Prev</button>
                 <span style={{ fontSize: 12, opacity: 0.8 }}>{filteredRows.length ? (singleIndex + 1) : 0} / {filteredRows.length}</span>
                 <button onClick={gotoSingleNext} disabled={singleIndex >= filteredRows.length - 1} aria-label="Next item">Next ›</button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : randomView ? (
+        <div className="single-view random-view">
+          {filteredRows.length === 0 ? (
+            <div className="single-empty">No data found. {rows.length === 0 ? 'Click "Import CSV" (top right) to load your data.' : 'Try changing filters.'}</div>
+          ) : (
+            <div className="single-card">
+              <div className="single-text korean" style={{ fontSize: '2.2rem', marginBottom: 12 }}>
+                {filteredRows[randomIndex]?.korean}
+              </div>
+              <div className="single-text english" style={{ fontSize: '1.4rem', marginBottom: 20, opacity: 0.9 }}>
+                {filteredRows[randomIndex]?.english}
+              </div>
+              <div className="single-audio" style={{ marginBottom: 18 }}>
+                {filteredRows[randomIndex]?.audio ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
+                    <audio
+                      controls
+                      src={filteredRows[randomIndex]?.audio ? `/media/${filteredRows[randomIndex].audio}` : undefined}
+                      ref={el => { if (el && filteredRows[randomIndex]) audioRefs.current[filteredRows[randomIndex].id] = el; }}
+                      loop={!!looping[filteredRows[randomIndex]?.id]}
+                      style={{ width: 360, maxWidth: '90%' }}
+                    />
+                    {filteredRows[randomIndex] ? (
+                      <button
+                        className="icon-btn"
+                        onClick={() => toggleLoop(filteredRows[randomIndex].id)}
+                        aria-label={looping[filteredRows[randomIndex].id] ? 'Disable repeat' : 'Enable repeat'}
+                        title={looping[filteredRows[randomIndex].id] ? 'Disable repeat' : 'Enable repeat'}
+                        style={looping[filteredRows[randomIndex].id] ? { background: '#2b2f3a', borderColor: '#4a5568' } : undefined}
+                      >{looping[filteredRows[randomIndex].id] ? '🔁' : '↻'}</button>
+                    ) : null}
+                  </div>
+                ) : 'No audio'}
+              </div>
+              <div className="flex-spacer" />
+              {filteredRows[randomIndex] ? (
+                <div className="single-actions" style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
+                  <button className="icon-btn" onClick={() => openPromptFor(filteredRows[randomIndex])} title="Run AI" aria-label="Run AI">🧠</button>
+                  {studied[filteredRows[randomIndex].id] ? (
+                    <button className="icon-btn" onClick={() => unmarkStudied(filteredRows[randomIndex].id)} title="Unmark studied" aria-label="Unmark studied">↺</button>
+                  ) : (
+                    <button className="icon-btn" onClick={() => markStudied(filteredRows[randomIndex].id)} title="Mark studied" aria-label="Mark studied">✓</button>
+                  )}
+                  <button className="icon-btn danger" onClick={() => deleteRow(filteredRows[randomIndex].id)} title="Delete" aria-label="Delete">🗑</button>
+                </div>
+              ) : null}
+              <div className="single-nav" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+                <button onClick={gotoRandomPrev} disabled={randomHistory.length <= 1} aria-label="Previous random item">‹ Prev</button>
+                <span style={{ fontSize: 12, opacity: 0.8 }}>{filteredRows.length && randomIndex != null ? (filteredRows[randomIndex] ? (randomHistory.length) : 0) : 0} shown</span>
+                <button onClick={gotoRandomNext} disabled={filteredRows.length <= 1} aria-label="Next random item">Next ›</button>
               </div>
             </div>
           )}
