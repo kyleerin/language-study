@@ -234,6 +234,8 @@ function App() {
 
   // Build AI prompt from the Korean text
   const buildPrompt = (koreanText = '') => `translate and explain this, don't include transliteration. Break it down word by word with explanations/definitions. Give only this, nothing else. Format it very simply, no special bulleted lists, just simple sentence/paragraph structure.: ${koreanText}`;
+  // Build example sentence prompt (single concise example usage with translation)
+  const buildExamplePrompt = (koreanText = '') => `Give ONE natural Korean example sentence that correctly uses this phrase or word (${koreanText}).\nRules: 1) Provide the Korean sentence on the first line. 2) On the next line give ONLY the English translation. 3) Keep it level-appropriate and not overly formal unless required. 4) Do not include romanization, explanations, bullet points, numbering, quotes, or any extra commentary.`;
   
   // Run AI request and display in modal
   const runAIModal = async (promptText = '', cacheKey = '') => {
@@ -540,6 +542,20 @@ function App() {
       if (!key && !cached) { openAISettingsWindow(); return; }
       // Otherwise open modal; it will use cache if available or call API
       openPromptWindow(prompt, id);
+    } catch { /* no-op */ }
+  };
+
+  // Open example sentence modal for a row (separate cache key suffix ':ex')
+  const openExampleFor = (row = null) => {
+    try {
+      if (!row) return;
+      const prompt = buildExamplePrompt(row.korean || '');
+      const baseId = row.id || makeId(row.korean || '', row.english || '');
+      const cacheId = baseId + ':ex';
+      const cached = getAICacheValue(cacheId);
+      const key = (localStorage.getItem('openai:key') || '').trim();
+      if (!key && !cached) { openAISettingsWindow(); return; }
+      openPromptWindow(prompt, cacheId);
     } catch { /* no-op */ }
   };
 
@@ -1086,6 +1102,7 @@ function App() {
               {filteredRows[randomIndex] ? (
                 <div className="single-actions" style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
                   <button className="icon-btn" onClick={() => openPromptFor(filteredRows[randomIndex])} title="Run AI" aria-label="Run AI">🧠</button>
+                  <button className="icon-btn" onClick={() => openExampleFor(filteredRows[randomIndex])} title="Example sentence" aria-label="Generate example sentence">💬</button>
                   {studied[filteredRows[randomIndex].id] ? (
                     <button className="icon-btn" onClick={() => unmarkStudied(filteredRows[randomIndex].id)} title="Unmark studied" aria-label="Unmark studied">↺</button>
                   ) : (
