@@ -76,7 +76,7 @@ function parseCSV(text) {
     const audio = cols[2] || '';
     const id = makeId(korean, english);
     return { id, korean, english, audio };
-  }).filter(row => row.korean && row.english && row.audio);
+  }).filter(row => row.korean && row.english); // Allow rows without audio
 }
 
 function stringifyCSV(rows) {
@@ -349,6 +349,108 @@ function App() {
     // Keep last response visible on reopen? Clear for now to avoid stale content
     setAiResponse('');
     setAiStatus('');
+  };
+
+  // Manual add form state
+  const [addOpen, setAddOpen] = useState(false);
+  const [addKorean, setAddKorean] = useState('');
+  const [addEnglish, setAddEnglish] = useState('');
+  const [addStatus, setAddStatus] = useState('');
+  const [addBusy, setAddBusy] = useState(false);
+
+  const openAddModal = () => {
+    setAddKorean('');
+    setAddEnglish('');
+    setAddStatus('');
+    setAddBusy(false);
+    setAddOpen(true);
+  };
+  const closeAddModal = () => {
+    if (addBusy) return; // prevent closing while busy
+    setAddOpen(false);
+  };
+
+  // Reusable OpenAI request helper (simple, translation only usage)
+  const openAIRequest = async (promptText) => {
+    const key = (localStorage.getItem('openai:key') || '').trim();
+    const model = (localStorage.getItem('openai:model') || 'gpt-5').trim() || 'gpt-5';
+    if (!key) throw new Error('No OpenAI API key saved. Open AI Settings first.');
+    const ac = new AbortController();
+    const timeoutMs = 30000;
+    const withTimeout = (p) => new Promise((resolve, reject) => {
+      const to = setTimeout(() => { try { ac.abort(); } catch { /* ignore */ } reject(new Error('Request timed out')); }, timeoutMs);
+      p.then(v => { clearTimeout(to); resolve(v); }, e => { clearTimeout(to); reject(e); });
+    });
+    const chatCompletions = async (overrideModel) => {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+        body: JSON.stringify({
+          model: overrideModel || model,
+            messages: [
+              { role: 'system', content: 'You are a translation assistant. Output ONLY the direct English translation, no extra commentary.' },
+              { role: 'user', content: promptText }
+            ],
+            temperature: 0.0
+        }),
+        signal: ac.signal
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      return (data?.choices?.[0]?.message?.content) || '';
+    };
+    const responsesAPI = async (overrideModel) => {
+      const res = await fetch('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+        body: JSON.stringify({ model: overrideModel || model, input: promptText, temperature: 0.0 }),
+        signal: ac.signal
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (typeof data?.output_text === 'string') return data.output_text;
+      return JSON.stringify(data);
+    };
+    const primaryModel = model;
+    const fallbackModel = primaryModel === 'gpt-5' ? 'gpt-4o-mini' : null;
+    const steps = [() => chatCompletions(primaryModel), () => responsesAPI(primaryModel)];
+    if (fallbackModel) steps.push(() => chatCompletions(fallbackModel), () => responsesAPI(fallbackModel));
+    for (const fn of steps) {
+      try { return await withTimeout(fn()); } catch { /* try next */ }
+    }
+    throw new Error('All translation attempts failed');
+  };
+
+  const handleAddSave = async () => {
+    const koreanText = (addKorean || '').trim();
+    if (!koreanText) { setAddStatus('Enter Korean text first.'); return; }
+    try {
+      setAddBusy(true);
+      setAddStatus(addEnglish ? 'Saving…' : 'Translating…');
+      let englishText = (addEnglish || '').trim();
+      if (!englishText) {
+        const prompt = `give me only the translation: ${koreanText}`;
+        englishText = (await openAIRequest(prompt)).trim();
+        // Collapse newlines / excess spaces
+        englishText = englishText.replace(/\s+/g, ' ').trim();
+      }
+      if (!englishText) englishText = '[Translation missing]';
+      const id = makeId(koreanText, englishText);
+      const newRow = { id, korean: koreanText, english: englishText, audio: '' };
+      setRows(prev => {
+        const existingIdx = prev.findIndex(r => r.id === id);
+        if (existingIdx !== -1) return prev; // already exists, skip
+        const next = [newRow, ...prev];
+        try { localStorage.setItem('app:dataCSV', stringifyCSV(next)); } catch { /* ignore */ }
+        return next;
+      });
+      setAddStatus('Added');
+      setTimeout(() => { setAddOpen(false); }, 400);
+    } catch (e) {
+      setAddStatus('Error: ' + (e?.message || 'unknown'));
+    } finally {
+      setAddBusy(false);
+    }
   };
 
   const openPromptWindow = (promptText = '', cacheKey = '') => {
@@ -736,6 +838,7 @@ function App() {
           <button onClick={handleImportClick} aria-label="Import CSV and save to localStorage">
             Import CSV
           </button>
+          <button onClick={openAddModal} aria-label="Add a new phrase manually">Add Text</button>
           <button
             onClick={openAISettingsWindow}
             aria-label="Open AI settings"
@@ -1055,6 +1158,40 @@ function App() {
             {aiStatus ? (<div className="ai-status">{aiStatus}</div>) : null}
             <div className="ai-output" aria-live="polite">
               <ReactMarkdown>{aiResponse || ''}</ReactMarkdown>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {addOpen ? (
+        <div className="modal-overlay" onClick={closeAddModal}>
+          <div className="modal-panel" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Add Phrase</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 12, opacity: 0.7 }}>Korean</span>
+                <textarea
+                  rows={3}
+                  value={addKorean}
+                  onChange={(e) => setAddKorean(e.target.value)}
+                  placeholder="Enter Korean text"
+                  style={{ resize: 'vertical' }}
+                />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 12, opacity: 0.7 }}>English (leave blank to auto-translate)</span>
+                <textarea
+                  rows={2}
+                  value={addEnglish}
+                  onChange={(e) => setAddEnglish(e.target.value)}
+                  placeholder="Will be filled by AI if left blank"
+                  style={{ resize: 'vertical' }}
+                />
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+                <span style={{ fontSize: 12, opacity: 0.7 }}>{addStatus}</span>
+                <button onClick={closeAddModal} disabled={addBusy}>Cancel</button>
+                <button onClick={handleAddSave} disabled={addBusy}>{addBusy ? 'Working…' : 'Save'}</button>
+              </div>
             </div>
           </div>
         </div>
