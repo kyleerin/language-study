@@ -358,6 +358,15 @@ function App() {
   const [addStatus, setAddStatus] = useState('');
   const [addBusy, setAddBusy] = useState(false);
 
+  // Edit modal state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editRowId, setEditRowId] = useState('');
+  const [editKorean, setEditKorean] = useState('');
+  const [editEnglish, setEditEnglish] = useState('');
+  const [editAudio, setEditAudio] = useState('');
+  const [editStatus, setEditStatus] = useState('');
+  const [editBusy, setEditBusy] = useState(false);
+
   const openAddModal = () => {
     setAddKorean('');
     setAddEnglish('');
@@ -450,6 +459,68 @@ function App() {
       setAddStatus('Error: ' + (e?.message || 'unknown'));
     } finally {
       setAddBusy(false);
+    }
+  };
+
+  const openEditModal = (row) => {
+    if (!row) return;
+    setEditRowId(row.id);
+    setEditKorean(row.korean || '');
+    setEditEnglish(row.english || '');
+    setEditAudio(row.audio || '');
+    setEditStatus('');
+    setEditBusy(false);
+    setEditOpen(true);
+  };
+  const closeEditModal = () => { if (editBusy) return; setEditOpen(false); };
+  const handleEditSave = () => {
+    const k = editKorean.trim();
+    const e = editEnglish.trim();
+    const a = editAudio.trim();
+    if (!k || !e) { setEditStatus('Korean and English required.'); return; }
+    try {
+      setEditBusy(true);
+      const newId = makeId(k, e);
+      setRows(prev => {
+        const idx = prev.findIndex(r => r.id === editRowId);
+        if (idx === -1) return prev;
+        // If newId collides with different row, prevent update
+        const collision = prev.find(r => r.id === newId && r.id !== editRowId);
+        if (collision) {
+          setEditStatus('Another entry already has this Korean+English.');
+          return prev;
+        }
+        const updated = { id: newId, korean: k, english: e, audio: a };
+        const next = [...prev];
+        next[idx] = updated;
+        try { localStorage.setItem('app:dataCSV', stringifyCSV(next)); } catch { /* ignore */ }
+        // If id changed, migrate studied/looping/audioRefs
+        if (newId !== editRowId) {
+          setStudied(prevStudied => {
+            if (!prevStudied[editRowId]) return prevStudied;
+            const { [editRowId]: _old, ...rest } = prevStudied;
+            return { ...rest, [newId]: true };
+          });
+          setLooping(prevLoop => {
+            if (!prevLoop[editRowId]) return prevLoop;
+            const { [editRowId]: _old2, ...rest } = prevLoop;
+            return { ...rest, [newId]: true };
+          });
+          try {
+            if (audioRefs.current[editRowId]) {
+              audioRefs.current[newId] = audioRefs.current[editRowId];
+              delete audioRefs.current[editRowId];
+            }
+          } catch { /* ignore */ }
+        }
+        setEditStatus('Saved');
+        setTimeout(() => setEditOpen(false), 350);
+        return next;
+      });
+    } catch (e) {
+      setEditStatus('Error saving');
+    } finally {
+      setEditBusy(false);
     }
   };
 
@@ -965,6 +1036,7 @@ function App() {
                   ) : (
                     <button className="icon-btn" onClick={() => markStudied(currentSingleRow.id)} title="Mark studied" aria-label="Mark studied">✓</button>
                   )}
+                  <button className="icon-btn" onClick={() => openEditModal(currentSingleRow)} title="Edit" aria-label="Edit">✎</button>
                   <button className="icon-btn danger" onClick={() => deleteRow(currentSingleRow.id)} title="Delete" aria-label="Delete">🗑</button>
                 </div>
               ) : null}
@@ -1019,6 +1091,7 @@ function App() {
                   ) : (
                     <button className="icon-btn" onClick={() => markStudied(filteredRows[randomIndex].id)} title="Mark studied" aria-label="Mark studied">✓</button>
                   )}
+                  <button className="icon-btn" onClick={() => openEditModal(filteredRows[randomIndex])} title="Edit" aria-label="Edit">✎</button>
                   <button className="icon-btn danger" onClick={() => deleteRow(filteredRows[randomIndex].id)} title="Delete" aria-label="Delete">🗑</button>
                 </div>
               ) : null}
@@ -1097,6 +1170,12 @@ function App() {
                               aria-label="Run AI on this Korean text"
                               title="Run AI"
                             >🧠</button>
+                              <button
+                                className="icon-btn"
+                                onClick={() => openEditModal(row)}
+                                aria-label="Edit row"
+                                title="Edit row"
+                              >✎</button>
                             <button
                               className="icon-btn"
                               onClick={() => unmarkStudied(row.id)}
@@ -1118,6 +1197,12 @@ function App() {
                               aria-label="Run AI on this Korean text"
                               title="Run AI"
                             >🧠</button>
+                            <button
+                              className="icon-btn"
+                              onClick={() => openEditModal(row)}
+                              aria-label="Edit row"
+                              title="Edit row"
+                            >✎</button>
                             <button
                               className="icon-btn"
                               onClick={() => markStudied(row.id)}
@@ -1191,6 +1276,52 @@ function App() {
                 <span style={{ fontSize: 12, opacity: 0.7 }}>{addStatus}</span>
                 <button onClick={closeAddModal} disabled={addBusy}>Cancel</button>
                 <button onClick={handleAddSave} disabled={addBusy}>{addBusy ? 'Working…' : 'Save'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {editOpen ? (
+        <div className="modal-overlay" onClick={closeEditModal}>
+          <div className="modal-panel" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Edit Phrase</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 12, opacity: 0.7 }}>Korean</span>
+                <textarea
+                  rows={3}
+                  value={editKorean}
+                  onChange={(e) => setEditKorean(e.target.value)}
+                  placeholder="Korean text"
+                  style={{ resize: 'vertical' }}
+                />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 12, opacity: 0.7 }}>English</span>
+                <textarea
+                  rows={2}
+                  value={editEnglish}
+                  onChange={(e) => setEditEnglish(e.target.value)}
+                  placeholder="English translation"
+                  style={{ resize: 'vertical' }}
+                />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: 12, opacity: 0.7 }}>Audio filename (optional)</span>
+                <input
+                  type="text"
+                  value={editAudio}
+                  onChange={(e) => setEditAudio(e.target.value)}
+                  placeholder="e.g. 12345.mp3 or 12345_prev.jpg"
+                />
+              </label>
+              <div style={{ fontSize: 11, opacity: 0.6 }}>
+                ID will update automatically if Korean or English change (used for dedup & studied tracking).
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+                <span style={{ fontSize: 12, opacity: 0.7 }}>{editStatus}</span>
+                <button onClick={closeEditModal} disabled={editBusy}>Cancel</button>
+                <button onClick={handleEditSave} disabled={editBusy}>{editBusy ? 'Saving…' : 'Save'}</button>
               </div>
             </div>
           </div>
