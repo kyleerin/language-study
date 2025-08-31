@@ -475,18 +475,27 @@ function App() {
     setEditOpen(true);
   };
   const closeEditModal = () => { if (editBusy) return; setEditOpen(false); };
-  const handleEditSave = () => {
+  const handleEditSave = async () => {
     const k = editKorean.trim();
-    const e = editEnglish.trim();
+    let e = editEnglish.trim();
     const a = editAudio.trim();
-    if (!k || !e) { setEditStatus('Korean and English required.'); return; }
+    if (!k) { setEditStatus('Korean required.'); return; }
     try {
       setEditBusy(true);
+      if (!e) {
+        setEditStatus('Translating…');
+        try {
+          const prompt = `give me only the translation: ${k}`;
+          e = (await openAIRequest(prompt)).trim().replace(/\s+/g, ' ');
+        } catch (err) {
+          // Fallback placeholder if translation fails
+          if (!e) e = '[Translation missing]';
+        }
+      }
       const newId = makeId(k, e);
       setRows(prev => {
         const idx = prev.findIndex(r => r.id === editRowId);
         if (idx === -1) return prev;
-        // If newId collides with different row, prevent update
         const collision = prev.find(r => r.id === newId && r.id !== editRowId);
         if (collision) {
           setEditStatus('Another entry already has this Korean+English.');
@@ -496,7 +505,6 @@ function App() {
         const next = [...prev];
         next[idx] = updated;
         try { localStorage.setItem('app:dataCSV', stringifyCSV(next)); } catch { /* ignore */ }
-        // If id changed, migrate studied/looping/audioRefs
         if (newId !== editRowId) {
           setStudied(prevStudied => {
             if (!prevStudied[editRowId]) return prevStudied;
