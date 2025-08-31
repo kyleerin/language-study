@@ -10,7 +10,18 @@ cd server
 npm install
 ```
 
-2. Start the server:
+2. Configure environment:
+```bash
+# Copy example file
+cp .env.example .env
+
+# Edit .env with your values:
+# API_SECRET=your-secure-secret-here
+# CORS_ORIGINS=http://localhost:5173
+# OPENAI_API_KEY=your-openai-key (optional)
+```
+
+3. Start the server:
 ```bash
 # Development (with auto-restart)
 npm run dev
@@ -20,6 +31,15 @@ npm start
 ```
 
 The server runs on `http://localhost:3001` by default.
+
+## Security
+
+⚠️ **Important**: This server requires authentication via API key.
+
+- Set `API_SECRET` in your `.env` file
+- Users must provide this key when using the frontend
+- All endpoints except `/api/health` require authentication
+- See `SECURITY.md` for complete security documentation
 
 ## API Endpoints
 
@@ -36,9 +56,13 @@ The server runs on `http://localhost:3001` by default.
 - `POST /api/studied/:id` - Mark/unmark single item (`{studied: boolean}`)
 - `DELETE /api/studied` - Clear all studied data
 
+### OpenAI Integration (Optional)
+- `POST /api/openai/translate` - Translate text (`{text, prompt?}`)
+- `POST /api/openai/explain` - Explain Korean text (`{text}`)
+
 ### Media & Health
 - `GET /media/*` - Serve audio files
-- `GET /api/health` - Health check
+- `GET /api/health` - Health check (no auth required)
 
 ## Data Storage
 
@@ -48,11 +72,12 @@ The server runs on `http://localhost:3001` by default.
 
 ## Features
 
-- File upload with validation (CSV only, 10MB max)
-- Automatic deduplication on import
-- CORS enabled for frontend integration
-- Error handling and validation
-- Static file serving for audio files
+- **Security**: API key authentication, CORS protection, rate limiting
+- **File Upload**: CSV validation (10MB max) with deduplication
+- **OpenAI Integration**: Server-side API proxy (optional)
+- **Error Handling**: Proper validation and error responses
+- **Static Files**: Audio file serving
+- **Headers**: Security headers via Helmet.js
 
 ## Frontend Integration
 

@@ -22,3 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Sensitive data files
+public/*.csv
+public/data.backup.*.csv
+server/data/
+server/.env
+.env
+.env.local
+
+# User-generated content
+public/media/
